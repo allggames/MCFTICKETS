@@ -9,6 +9,9 @@ export type StaffMember = {
   // Lista de eventos habilitados expresamente para este RR. PP.
   // Un admin tiene acceso global, independiente de esta lista.
   allowedEventIds: string[];
+  // Permiso adicional para emitir invitaciones/cortesías sin cargo, por evento.
+  // Nunca se concede implícitamente con la habilitación de venta.
+  invitationEventIds: string[];
 };
 export type BatchStatusChange = {
   id: string;
@@ -65,9 +68,9 @@ export type Store = { events: EventItem[]; tickets: Ticket[]; staff?: StaffMembe
 // Personas ficticias para probar el menú antes de conectar Supabase Auth.
 // Estos perfiles NO representan credenciales ni controles de seguridad reales.
 export const demoStaff: StaffMember[] = [
-  { id: 'demo-admin', name: 'Administración MCF', email: 'admin@ejemplo.com', role: 'admin', active: true, allowedEventIds: [] },
-  { id: 'demo-rrpp-1', name: 'Martina López', email: 'martina@ejemplo.com', role: 'promoter', active: true, allowedEventIds: ['neon-night'] },
-  { id: 'demo-rrpp-2', name: 'Nicolás Duarte', email: 'nicolas@ejemplo.com', role: 'promoter', active: true, allowedEventIds: ['sunset'] },
+  { id: 'demo-admin', name: 'Administración MCF', email: 'admin@ejemplo.com', role: 'admin', active: true, allowedEventIds: [], invitationEventIds: [] },
+  { id: 'demo-rrpp-1', name: 'Martina López', email: 'martina@ejemplo.com', role: 'promoter', active: true, allowedEventIds: ['neon-night'], invitationEventIds: [] },
+  { id: 'demo-rrpp-2', name: 'Nicolás Duarte', email: 'nicolas@ejemplo.com', role: 'promoter', active: true, allowedEventIds: ['sunset'], invitationEventIds: [] },
 ];
 
 export const demoEvents: EventItem[] = [
@@ -116,7 +119,7 @@ const sampleTicket = (index: number, eventId: string, tierId: string, source: Ti
   holder: ['Lucía Rodríguez', 'Mateo Gómez', 'Sofía Benítez', 'Tomás Pérez', 'Valentina Silva', 'Camila López'][index % 6],
   email: `cliente${index}@ejemplo.com`,
   source,
-  promoter: source === 'online' ? '' : index % 2 === 0 ? 'Martina López' : 'Nicolás Duarte',
+  promoter: source === 'online' ? '' : source === 'cortesia' ? 'Administración MCF' : index % 2 === 0 ? 'Martina López' : 'Nicolás Duarte',
   price,
   paymentStatus: source === 'online' ? 'approved' : source === 'cortesia' ? 'complimentary' : 'reported',
   status: used ? 'used' : 'valid',
@@ -159,6 +162,9 @@ export function loadStore(): Store {
                 allowedEventIds: Array.isArray(member.allowedEventIds)
                   ? member.allowedEventIds.filter((id): id is string => typeof id === 'string')
                   : example?.allowedEventIds ?? [],
+                invitationEventIds: Array.isArray(member.invitationEventIds)
+                  ? member.invitationEventIds.filter((id): id is string => typeof id === 'string')
+                  : [],
               };
             }) : demoStaff,
           events: parsed.events.map(event => {

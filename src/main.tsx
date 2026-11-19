@@ -14,7 +14,7 @@ import {
   type EventItem, type StaffMember, type Store, type Ticket,
 } from './data';
 import { AdminEventManager } from './admin-management';
-import { canAccessPage, canSellEvent, PermissionsPage, staffRoleLabel, type WorkspacePage } from './permissions';
+import { canAccessPage, canIssueInvitation, canSellEvent, PermissionsPage, staffRoleLabel, type WorkspacePage } from './permissions';
 import './styles.css';
 
 type Page = WorkspacePage;
@@ -244,13 +244,17 @@ function PublicPage({ store, user, addTicket }: { store: Store; user: StaffMembe
   const promoter = user?.name ?? '';
   const [generated, setGenerated] = useState<Ticket | null>(null);
   const tier = activeTiers.find(t => t.id === tierId) ?? activeTiers[0];
+  const canInvite = Boolean(event && canIssueInvitation(user, event.id));
+  const issueKind = canInvite ? kind : 'publico';
   const issued = store.tickets.filter(t => t.promoter === promoter && canSellEvent(user, t.eventId));
   function changeEvent(id: string) { setEventId(id); setTierId(''); setGenerated(null); }
   function generate(e: React.FormEvent) {
     e.preventDefault();
     if (!event || !tier || !canSellEvent(user, event.id) || !holder.trim() || !email.includes('@')) return;
     if (store.tickets.filter(t => t.tierId === tier.id && t.status !== 'void').length >= tier.capacity) return;
-    const newTicket = makeDemoTicket(event.id, tier.id, holder.trim(), email.trim(), kind, promoter, kind === 'cortesia' ? 0 : tier.price);
+    // El permiso se verifica al emitir, no solamente al mostrar el botón.
+    const authorizedKind = canIssueInvitation(user, event.id) ? issueKind : 'publico';
+    const newTicket = makeDemoTicket(event.id, tier.id, holder.trim(), email.trim(), authorizedKind, promoter, authorizedKind === 'cortesia' ? 0 : tier.price);
     addTicket(newTicket); setGenerated(newTicket); setHolder(''); setEmail('');
   }
 
@@ -278,10 +282,11 @@ function PublicPage({ store, user, addTicket }: { store: Store; user: StaffMembe
             {activeTiers.map(t=><option key={t.id} value={t.id}>{t.name} — {formatMoney(t.price)}</option>)}</select></label>
           <div className="form-two"><label>Nombre y apellido<input required value={holder} onChange={e=>setHolder(e.target.value)} placeholder="Nombre del cliente"/></label>
             <label>Email del cliente<input required type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="cliente@correo.com"/></label></div>
-          <div className="issue-types"><label className={kind==='publico'?'issue-selected':''}><input type="radio" checked={kind==='publico'} onChange={()=>setKind('publico')}/>
+          <div className="issue-types"><label className={issueKind==='publico'?'issue-selected':''}><input type="radio" checked={issueKind==='publico'} onChange={()=>setKind('publico')}/>
             <CreditCard size={20}/><strong>Venta registrada</strong><small>{formatMoney(tier?.price??0)}</small></label>
-            <label className={kind==='cortesia'?'issue-selected':''}><input type="radio" checked={kind==='cortesia'} onChange={()=>setKind('cortesia')}/>
-              <Sparkles size={20}/><strong>Cortesía</strong><small>Sin cargo</small></label></div>
+            {canInvite && <label className={issueKind==='cortesia'?'issue-selected':''}><input type="radio" checked={issueKind==='cortesia'} onChange={()=>setKind('cortesia')}/>
+              <Sparkles size={20}/><strong>Invitación / cortesía</strong><small>Sin cargo</small></label>}</div>
+          {!canInvite && <div className="public-invite-restriction"><LockKeyhole size={15}/> Las invitaciones sin cargo están reservadas al administrador. Solo él puede habilitarte este permiso para el evento.</div>}
           <Button type="submit" className="full-width" disabled={!tier}><QrCode size={18}/> Generar entrada de prueba</Button>
         </div>
       </form>

@@ -4,9 +4,9 @@ Primera versión de una ticketera multi-evento para Argentina. Incluye cinco mó
 
 - **Administrador**: crear y editar eventos; cada lote tiene un nombre y al menos un sector, con precio y cupo independientes; agregar sectores extra es opcional y está disponible tanto al crear el evento como al crear/editar lotes; apertura y cierre de ventas exclusivamente manuales (con confirmación e historial); ampliar entradas de un sector en cualquier momento con historial del ajuste; reportes por evento/lote/sector; búsqueda de emisiones por titular o público y acceso al QR de prueba.
 - **Tienda pública**: catálogo de eventos, sectores y formulario de comprador.
-- **Públicos / RR. PP.**: registro de ventas informadas y entradas de cortesía, limitado a los eventos asignados a ese usuario. El emisor se toma del perfil activo.
+- **Públicos / RR. PP.**: registro de ventas informadas, limitado a los eventos asignados a ese usuario. Las invitaciones/cortesías sin cargo están reservadas al administrador salvo autorización adicional individual para un evento. El emisor se toma del perfil activo.
 - **Lector QR**: lectura con cámara y validación de tickets únicos.
-- **Usuarios y permisos**: dos roles fijos (administrador y RR. PP.), asignaciones por evento individuales o masivas, búsqueda, habilitación/suspensión de cuentas, prueba de perfiles y rutas restringidas. La configuración del personal del lector QR se hará más adelante.
+- **Usuarios y permisos**: dos roles fijos (administrador y RR. PP.), asignaciones de venta por evento individuales o masivas y permiso separado de emisión de invitaciones/cortesías. El administrador puede conceder o retirar este permiso por RR. PP. y evento; inicia siempre desactivado. También incluye búsqueda, suspensión, prueba de perfiles y rutas restringidas. La configuración del personal del lector QR se hará más adelante.
 
 > **Estado actual: prototipo interactivo (modo demo).** La interfaz utiliza datos de ejemplo y `localStorage`. No procesa pagos reales, no envía correos, no autentica operadores y **no** sirve para validar entradas reales. **El selector de perfiles y el bloqueo visual de rutas NO son controles de seguridad:** cualquier visitante puede elegir un perfil de prueba. No usar información real ni invitar operadores hasta conectar Supabase Auth y aplicar autorización del lado del servidor. La estructura inicial de Supabase está aplicada al proyecto MCF, pero el frontend todavía no consume esos datos.
 
@@ -43,8 +43,9 @@ La navegación usa fragmentos de URL, lo que permite servir el frontend desde Gi
 
 - **Administrador**: ve todos los módulos, incluida la gestión de usuarios y la tienda.
 - **RR. PP.**: solo ve el panel de públicos y, dentro de él, exclusivamente los eventos publicados que le hayan asignado. Si no tiene eventos, no puede emitir entradas.
+- **Invitaciones/cortesías**: por defecto solo el administrador puede generar QR sin cargo. En el panel de permisos puede otorgar este permiso a un RR. PP. para un evento concreto, siempre que ya esté habilitado para vender ese evento. Al quitar su acceso al evento, también pierde el permiso de invitaciones.
 - **Visitante**: solo ve la tienda pública.
-- El administrador puede preparar personas pendientes, activar/suspender perfiles y habilitar/deshabilitar RR. PP. **por evento**. Es posible buscar y aplicar permisos en bloque (con confirmación), por ejemplo habilitar 10 RR. PP. para un evento y 50 para otro. Se guarda únicamente en el navegador.
+- El administrador puede preparar personas pendientes, activar/suspender perfiles y habilitar/deshabilitar RR. PP. **por evento**. Es posible buscar y aplicar permisos de venta en bloque (con confirmación), por ejemplo habilitar 10 RR. PP. para un evento y 50 para otro. Las invitaciones se autorizan de manera individual. Se guarda únicamente en el navegador.
 - El lector QR continúa como prototipo, accesible desde la vista de administrador, pero la gestión de usuarios de puerta y sus permisos se desarrollará por separado.
 - Para que esto sea **real y seguro** faltan: autenticación de cada usuario; alta/aprobación desde el servidor; permisos de módulo guardados con RLS; verificación de rol y evento en cada RPC/Edge Function; e invitaciones por correo. El cambio de permisos de módulo en Supabase no está aplicado todavía.
 
@@ -107,7 +108,7 @@ Las credenciales privadas (`MP_ACCESS_TOKEN`, firma de webhook y credencial de c
 - [x] Creación de eventos y lotes con un sector inicial personalizable y sectores adicionales opcionales, cada uno con su precio y cupo.
 - [x] Demo de ampliación de entradas por sector/lote e historial; no altera los QR previamente emitidos.
 - [x] Demo de apertura y cierre manual de lotes, confirmación, historial y ausencia de cambios automáticos cuando se agota el cupo.
-- [x] Demo de roles fijos administrador/RR. PP., usuarios pendientes, asignación por evento y cambios masivos, con bloqueo visual por ruta y selector de perfiles.
+- [x] Demo de roles fijos administrador/RR. PP., usuarios pendientes, asignación por evento, cambios masivos y permiso de invitaciones por RR. PP./evento (desactivado por defecto), con bloqueo visual por ruta y selector de perfiles.
 - [ ] Permisos reales en Supabase, vinculación con Auth, invitaciones y comprobación de roles/eventos en el servidor.
 - [x] Demo del lector QR con cámara (sujeto a permisos HTTPS) o código manual.
 - [ ] Pruebas en Supabase conectado con diferentes roles.
