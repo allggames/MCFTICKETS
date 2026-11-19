@@ -124,7 +124,7 @@ function AdminPage({ store, updateStore }: { store: Store; updateStore: (next: S
     const batchId = makeId();
     updateStore({ ...store, events: [...store.events, { id, title: newName.trim().toUpperCase(), subtitle: 'Nuevo evento', date: newDate,
       time: newTime, venue: newVenue.trim(), city: newCity.trim() || 'Posadas, Misiones', status: 'draft', accent: '#a58cff',
-      batches: [{ id: batchId, name: newBatchName.trim(), status: 'active' }],
+      batches: [{ id: batchId, name: newBatchName.trim(), status: 'draft' }],
       tiers: [{ id: makeId(), batchId, name: 'General', price: Math.round(Number(newPrice)), capacity: Number(newCapacity) }],
     }] });
     setSelectedEventId(id);
@@ -161,7 +161,7 @@ function AdminPage({ store, updateStore }: { store: Store; updateStore: (next: S
           <label>Nombre del lote<input required value={newBatchName} onChange={e => setNewBatchName(e.target.value)} placeholder="Lote 1 / Earlys"/></label>
           <div className="form-two"><label>Precio General ($)<input type="number" required min="0" step="1" value={newPrice} onChange={e => setNewPrice(e.target.value)}/></label>
             <label>Cupo General<input type="number" required min="1" step="1" value={newCapacity} onChange={e => setNewCapacity(e.target.value)}/></label></div>
-          <p className="adm-helper">Al crear el evento podrás editar este lote y sumar sectores VIP, Ultra u otros.</p>
+          <p className="adm-helper">El evento y su primer lote quedan en espera. Para empezar a vender, publicá el evento y abrí el lote manualmente desde el administrador. Después podrás sumar sectores VIP, Ultra u otros.</p>
         </div><div className="modal-footer"><Button variant="secondary" onClick={() => setShowCreate(false)}>Cancelar</Button><Button type="submit"><Plus size={17}/> Crear borrador</Button></div>
       </form>
     </div>}

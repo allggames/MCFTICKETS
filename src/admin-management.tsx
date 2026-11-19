@@ -3,7 +3,7 @@ import {
   CalendarDays, Check, CircleAlert, ClipboardList, Eye, Layers3, Pencil,
   Plus, QrCode, Search, TicketCheck, Wallet, X,
 } from 'lucide-react';
-import { dateLabel, formatMoney, makeId, type Batch, type CapacityChange, type EventItem, type Ticket, type Tier } from './data';
+import { dateLabel, formatMoney, makeId, type Batch, type BatchStatusChange, type CapacityChange, type EventItem, type Ticket, type Tier } from './data';
 
 type SectorInput = { key: string; name: string; price: string; capacity: string };
 
@@ -39,6 +39,8 @@ export function AdminEventManager({ event, tickets, onChange, onViewTicket }: {
   const [additionalCapacity, setAdditionalCapacity] = useState('50');
   const [capacityReason, setCapacityReason] = useState('');
   const [capacityError, setCapacityError] = useState('');
+  const [statusError, setStatusError] = useState('');
+  const [pendingBatchAction, setPendingBatchAction] = useState<{ id: string; status: Batch['status'] } | null>(null);
 
   useEffect(() => {
     setDetails({ title: event.title, date: event.date, time: event.time,
@@ -49,15 +51,20 @@ export function AdminEventManager({ event, tickets, onChange, onViewTicket }: {
     setTicketSectorId('all');
     setTicketSearch('');
     setShowBatchForm(false);
+    setStatusError('');
+    setPendingBatchAction(null);
   }, [event.id]);
 
   const eventTickets = tickets.filter(t => t.eventId === event.id);
   const selectedBatch = event.batches.find(b => b.id === selectedBatchId) ?? event.batches[0];
+  const activeBatch = event.batches.find(b => b.status === 'active');
   const selectedTiers = event.tiers.filter(t => t.batchId === selectedBatch?.id);
   const batchTickets = (id: string) => eventTickets.filter(t => event.tiers.find(s => s.id === t.tierId)?.batchId === id);
   const issued = (rows: Ticket[]) => rows.filter(t => t.status !== 'void').length;
   const totalCapacity = event.tiers.reduce((sum, tier) => sum + tier.capacity, 0);
   const capacityHistory = (event.capacityChanges ?? []).filter(change => change.batchId === selectedBatch?.id)
+    .slice().reverse();
+  const statusHistory = (event.batchStatusChanges ?? []).filter(change => change.batchId === selectedBatch?.id)
     .slice().reverse();
   const filteredTickets = eventTickets.filter(t => {
     const tier = event.tiers.find(s => s.id === t.tierId);
@@ -116,7 +123,7 @@ export function AdminEventManager({ event, tickets, onChange, onViewTicket }: {
     }));
     const nextBatches: Batch[] = editingBatchId
       ? event.batches.map(b => b.id === id ? { ...b, name: cleanName } : b)
-      : [...event.batches, { id, name: cleanName, status: event.batches.some(b => b.status === 'active') ? 'draft' : 'active' }];
+      : [...event.batches, { id, name: cleanName, status: 'draft' }];
     const now = new Date().toISOString();
     const edits: CapacityChange[] = previousTiers.flatMap(old => {
       const next = newTiers.find(t => t.id === old.id);
@@ -129,6 +136,7 @@ export function AdminEventManager({ event, tickets, onChange, onViewTicket }: {
       tiers: [...event.tiers.filter(t => t.batchId !== id), ...newTiers],
       capacityChanges: [...(event.capacityChanges ?? []), ...edits] });
     setSelectedBatchId(id);
+    setStatusError('');
     setShowBatchForm(false);
   }
 
@@ -151,9 +159,21 @@ export function AdminEventManager({ event, tickets, onChange, onViewTicket }: {
   }
 
   function setBatchStatus(id: string, status: Batch['status']) {
-    onChange({ ...event, batches: event.batches.map(b => ({ ...b,
-      status: b.id === id ? status : status === 'active' && b.status === 'active' ? 'closed' : b.status,
-    })) });
+    const batch = event.batches.find(b => b.id === id);
+    if (!batch || batch.status === status) return;
+    if (status === 'active' && activeBatch && activeBatch.id !== id) {
+      setStatusError(`Primero cerrá ${activeBatch.name}. Los lotes no se cambian automáticamente.`);
+      return;
+    }
+    if (status === 'active' && !event.tiers.some(t => t.batchId === id)) {
+      setStatusError('Agregá por lo menos un sector antes de abrir las ventas de este lote.');
+      return;
+    }
+    const change: BatchStatusChange = { id: makeId(), batchId: id, previous: batch.status,
+      next: status, actor: 'Administrador (demo)', createdAt: new Date().toISOString() };
+    setStatusError('');
+    onChange({ ...event, batches: event.batches.map(b => b.id === id ? { ...b, status } : b),
+      batchStatusChanges: [...(event.batchStatusChanges ?? []), change] });
   }
 
   return <section className="adm-manager">
@@ -183,15 +203,22 @@ export function AdminEventManager({ event, tickets, onChange, onViewTicket }: {
     <div className="adm-section-top adm-lot-heading"><div><span className="section-eyebrow">PRECIOS Y DISPONIBILIDAD</span><h2>Lotes de entradas</h2>
       <p><Layers3 size={15}/> Cada lote define sus propios sectores, precios y cupos.</p></div>
       <button className="btn btn-primary" onClick={() => startBatch()}><Plus size={16}/> Nuevo lote</button></div>
+    <div className="adm-manual-status"><span className="adm-manual-icon"><Check size={18}/></span><div>
+      <strong>Control manual de lotes</strong>
+      <p>{activeBatch ? <>Venta habilitada: <b>{activeBatch.name}</b>. Para pasar a otro lote, cerrá este y abrí el siguiente.</>
+        : <>Ventas sin lote habilitado. Abrí el lote que quieras desde su panel cuando estés lista.</>}
+        {' '}Un lote agotado nunca activa automáticamente al siguiente.</p>
+    </div></div>
     <div className="adm-batch-list">{event.batches.map(batch => {
       const rows = batchTickets(batch.id);
       const tiers = event.tiers.filter(t => t.batchId === batch.id);
+      const available = tiers.reduce((n, tier) => n + Math.max(0, tier.capacity - issued(eventTickets.filter(t => t.tierId === tier.id))), 0);
       return <button key={batch.id} className={`adm-batch-card ${selectedBatch?.id === batch.id ? 'adm-batch-selected' : ''}`}
-        onClick={() => { setSelectedBatchId(batch.id); setTicketBatchId(batch.id); setTicketSectorId('all'); }}>
+        onClick={() => { setSelectedBatchId(batch.id); setTicketBatchId(batch.id); setTicketSectorId('all'); setStatusError(''); }}>
         <span className="adm-batch-title"><strong>{batch.name}</strong><span className={`pill pill-${batchTone(batch.status)}`}>{batchLabel(batch.status)}</span></span>
         <span className="adm-batch-numbers"><b>{issued(rows)}</b> / {tiers.reduce((n, t) => n + t.capacity, 0)} entradas</span>
         <span className="adm-progress"><i style={{ width: `${Math.min(100, issued(rows) / Math.max(1, tiers.reduce((n, t) => n + t.capacity, 0)) * 100)}%` }}/></span>
-        <span className="adm-batch-bottom">{tiers.length} sectores <b>{formatMoney(paidTotal(rows, 'approved') + paidTotal(rows, 'reported'))} informados</b></span>
+        <span className="adm-batch-bottom">{tiers.length} sectores · {available === 0 ? 'Agotado' : `${available} disponibles`} <b>{formatMoney(paidTotal(rows, 'approved') + paidTotal(rows, 'reported'))} informados</b></span>
       </button>;
     })}</div>
 
@@ -200,9 +227,13 @@ export function AdminEventManager({ event, tickets, onChange, onViewTicket }: {
         <p>Desglose de entradas y recaudación por sector</p></div>
         <div className="adm-inline-actions">
           <button className="btn btn-secondary" onClick={() => startBatch(selectedBatch)}><Pencil size={14}/> Editar lote</button>
-          {selectedBatch.status !== 'active' && <button className="btn btn-primary" onClick={() => setBatchStatus(selectedBatch.id, 'active')}><Check size={14}/> Activar lote</button>}
-          {selectedBatch.status === 'active' && <button className="btn btn-secondary" onClick={() => setBatchStatus(selectedBatch.id, 'closed')}><X size={14}/> Cerrar lote</button>}
+          {selectedBatch.status !== 'active' && <button className="btn btn-primary" disabled={!!activeBatch && activeBatch.id !== selectedBatch.id}
+            title={activeBatch ? `Primero cerrá ${activeBatch.name}` : 'Habilitar ventas de este lote'}
+            onClick={() => setPendingBatchAction({ id: selectedBatch.id, status: 'active' })}><Check size={14}/> Abrir ventas</button>}
+          {selectedBatch.status === 'active' && <button className="btn btn-secondary" onClick={() => setPendingBatchAction({ id: selectedBatch.id, status: 'closed' })}><X size={14}/> Cerrar ventas</button>}
         </div></div>
+      {selectedBatch.status !== 'active' && activeBatch && <p className="adm-manual-hint">Para abrir {selectedBatch.name}, primero cerrá las ventas de {activeBatch.name}. Esto no sucederá automáticamente.</p>}
+      {statusError && <p className="form-error"><CircleAlert size={15}/>{statusError}</p>}
       <div className="table-scroll"><table className="data-table"><thead><tr><th>SECTOR</th><th>PRECIO</th><th>EMITIDAS / CUPO</th><th>COBRADO ONLINE*</th><th>INFORMADO POR PÚBLICOS</th><th>CORTESÍAS</th><th>DISPONIBILIDAD</th></tr></thead>
         <tbody>{selectedTiers.map(tier => {
           const rows = eventTickets.filter(t => t.tierId === tier.id);
@@ -216,6 +247,12 @@ export function AdminEventManager({ event, tickets, onChange, onViewTicket }: {
           <span>{event.tiers.find(t => t.id === change.tierId)?.name ?? 'Sector'} · {change.delta > 0 ? `+${change.delta}` : change.delta} entradas</span>
           <small>{change.previous} → {change.next} · {change.actor} · {new Date(change.createdAt).toLocaleString('es-AR')}</small>
           <small>{change.reason}</small>
+        </div>)}
+      </div>}
+      {statusHistory.length > 0 && <div className="adm-capacity-history"><strong>Historial de apertura y cierre</strong>
+        {statusHistory.slice(0, 8).map(change => <div key={change.id} className="adm-capacity-change">
+          <span>{batchLabel(change.previous)} → {batchLabel(change.next)}</span>
+          <small>{change.actor} · {new Date(change.createdAt).toLocaleString('es-AR')}</small>
         </div>)}
       </div>}
       <p className="adm-helper">* En esta demo, los pagos online se simulan. Los cupos son independientes por sector y lote; se pueden ampliar aunque ya existan QR emitidos.</p>
@@ -261,7 +298,7 @@ export function AdminEventManager({ event, tickets, onChange, onViewTicket }: {
           <button type="button" className="adm-remove-sector" title="Quitar sector" disabled={sectors.length === 1} onClick={() => setSectors(s => s.filter(row => row.key !== sector.key))}><X size={17}/></button>
         </div>)}</div>
         {formError && <div className="form-error"><CircleAlert size={15}/>{formError}</div>}
-        <div className="adm-data-note"><TicketCheck size={16}/> Podés aumentar cupos, sumar sectores y modificar precios para futuras ventas. Los importes ya registrados no cambian. Los sectores con entradas emitidas no se pueden quitar ni renombrar.</div>
+        <div className="adm-data-note"><TicketCheck size={16}/> Este lote se crea en espera: solo el administrador puede habilitarlo. Podés aumentar cupos, sumar sectores y modificar precios para futuras ventas. Los sectores con entradas emitidas no se pueden quitar ni renombrar.</div>
         <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={() => setShowBatchForm(false)}>Cancelar</button>
           <button type="submit" className="btn btn-primary"><Wallet size={16}/> {editingBatchId ? 'Guardar cambios' : 'Crear lote'}</button></div>
       </form>
@@ -281,6 +318,19 @@ export function AdminEventManager({ event, tickets, onChange, onViewTicket }: {
         <div className="modal-footer"><button className="btn btn-secondary" type="button" onClick={() => setCapacityTier(null)}>Cancelar</button>
           <button className="btn btn-primary" type="submit"><Plus size={16}/> Confirmar ampliación</button></div>
       </form>
+    </div>}
+    {pendingBatchAction && <div className="modal-layer" onMouseDown={e => { if (e.target === e.currentTarget) setPendingBatchAction(null); }}>
+      <div className="modal-card adm-manual-confirm" role="dialog" aria-modal="true" aria-labelledby="adm-manual-confirm-title">
+        <div className="modal-header"><div><h2 id="adm-manual-confirm-title">{pendingBatchAction.status === 'active' ? '¿Abrir ventas de este lote?' : '¿Cerrar ventas de este lote?'}</h2>
+          <p>{event.batches.find(b => b.id === pendingBatchAction.id)?.name}</p></div>
+          <button className="icon-button" aria-label="Cerrar" onClick={() => setPendingBatchAction(null)}><X size={18}/></button></div>
+        <p className="adm-manual-description">{pendingBatchAction.status === 'active'
+          ? 'Este lote quedará disponible para la venta online y la emisión de los públicos. Ningún otro lote se activará automáticamente.'
+          : 'Se detendrán las ventas y las nuevas emisiones de este lote. Los QR ya emitidos seguirán siendo válidos y ningún otro lote se abrirá automáticamente.'}</p>
+        <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setPendingBatchAction(null)}>Cancelar</button>
+          <button className="btn btn-primary" onClick={() => { setBatchStatus(pendingBatchAction.id, pendingBatchAction.status); setPendingBatchAction(null); }}>
+            {pendingBatchAction.status === 'active' ? 'Sí, abrir ventas' : 'Sí, cerrar ventas'}</button></div>
+      </div>
     </div>}
   </section>;
 }

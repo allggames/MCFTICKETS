@@ -1,4 +1,12 @@
 export type Batch = { id: string; name: string; status: 'draft' | 'active' | 'closed' };
+export type BatchStatusChange = {
+  id: string;
+  batchId: string;
+  previous: Batch['status'];
+  next: Batch['status'];
+  actor: string;
+  createdAt: string;
+};
 export type Tier = { id: string; batchId: string; name: string; price: number; capacity: number };
 export type CapacityChange = {
   id: string;
@@ -24,6 +32,7 @@ export type EventItem = {
   batches: Batch[];
   tiers: Tier[];
   capacityChanges?: CapacityChange[];
+  batchStatusChanges?: BatchStatusChange[];
 };
 export type Ticket = {
   id: string;

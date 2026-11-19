@@ -2,7 +2,7 @@
 
 Primera versión de una ticketera multi-evento para Argentina. Incluye cuatro módulos:
 
-- **Administrador**: crear y editar eventos; lotes con sectores, precios y cupos independientes; ampliar entradas de un sector en cualquier momento con historial del ajuste; reportes por evento/lote/sector; búsqueda de emisiones por titular o público y acceso al QR de prueba.
+- **Administrador**: crear y editar eventos; lotes con sectores, precios y cupos independientes; apertura y cierre de ventas exclusivamente manuales (con confirmación e historial); ampliar entradas de un sector en cualquier momento con historial del ajuste; reportes por evento/lote/sector; búsqueda de emisiones por titular o público y acceso al QR de prueba.
 - **Tienda pública**: catálogo de eventos, sectores y formulario de comprador.
 - **Públicos / RR. PP.**: registro de ventas informadas y entradas de cortesía.
 - **Lector QR**: lectura con cámara y validación de tickets únicos.
@@ -43,7 +43,8 @@ La migración está en `supabase/migrations/`. Contiene:
 
 - `profiles`: usuarios internos y roles (`admin`, `promoter`, `scanner`).
 - `events`: eventos con estados borrador, publicado y cerrado.
-- `ticket_batches`: lotes de cada evento (en espera, activo o cerrado).
+- `ticket_batches`: lotes de cada evento (en espera, activo o cerrado). Solo el administrador abre/cierra ventas; no se habilita automáticamente el siguiente lote ni siquiera cuando se agota el actual. El esquema permite como máximo uno activo por evento.
+- `ticket_batch_status_audit`: historial de aperturas y cierres de lote, autor, estado anterior/nuevo y fecha.
 - `ticket_types`: sectores, precios en centavos de ARS y capacidad independiente dentro de cada lote, ajustable por el administrador.
 - `ticket_capacity_adjustments`: auditoría de cada cambio de cupo, con cantidad anterior/nueva, diferencia, motivo, autor y fecha.
 - `event_staff`: permisos por evento y cupos de cortesías.
@@ -56,7 +57,7 @@ La migración está en `supabase/migrations/`. Contiene:
 ### Integración de Supabase
 
 1. [x] Crear el proyecto MCF TICKETS aislado de HOST (`takzwkxidydafgsjiqol`).
-2. [x] Aplicar las migraciones iniciales, de lotes y de auditoría de cupos: nueve tablas con RLS.
+2. [x] Aplicar las migraciones iniciales, de lotes y de auditoría de cupos y estados: diez tablas con RLS.
 3. [ ] Registrar los usuarios internos y otorgar el primer administrador por SQL con su `auth.users.id` verificado.
 4. [ ] Conectar el frontend usando únicamente `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`. Nunca exponer una secret key en el navegador.
 5. [ ] Implementar autenticación real, enlazar los paneles a las tablas y pasar las operaciones sensibles a funciones protegidas del servidor.
@@ -93,6 +94,7 @@ Las credenciales privadas (`MP_ACCESS_TOKEN`, firma de webhook y credencial de c
 - [x] Demo de creación de eventos, compra simulada, emisión manual y QR.
 - [x] Demo de lotes, sectores, precios, cupos e informes desglosados en el administrador.
 - [x] Demo de ampliación de entradas por sector/lote e historial; no altera los QR previamente emitidos.
+- [x] Demo de apertura y cierre manual de lotes, confirmación, historial y ausencia de cambios automáticos cuando se agota el cupo.
 - [x] Demo del lector QR con cámara (sujeto a permisos HTTPS) o código manual.
 - [ ] Pruebas en Supabase conectado con diferentes roles.
 - [ ] Pruebas de compra Mercado Pago sandbox y webhook.
