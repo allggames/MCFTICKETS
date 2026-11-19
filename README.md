@@ -73,7 +73,7 @@ Las credenciales privadas (`MP_ACCESS_TOKEN`, firma de webhook y credencial de c
 
 ## Decisiones antes de producción
 
-- Repositorio GitHub privado para el código; la tienda web podrá publicarse por separado.
+- El repositorio GitHub actual es **público**: nunca subir claves secretas, datos personales ni tokens de pago. El backend protegido se ejecutará en Supabase.
 - Proyecto Supabase propio para no mezclar datos con HOST.
 - Proveedor de envío de correos (por ejemplo, Resend) y dominio verificado.
 - Configuración de la cuenta Mercado Pago receptora de pagos y reglas de reembolso.
