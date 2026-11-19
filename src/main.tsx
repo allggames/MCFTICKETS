@@ -48,12 +48,12 @@ function Metric({ label, value, icon: Icon, annotation, color = 'purple' }: {
 }
 
 const menu: { id: Page; name: string; icon: IconComponent; detail: string }[] = [
-  { id: 'admin', name: 'Panel de eventos', icon: LayoutDashboard, detail: 'Control general' },
-  { id: 'eventos', name: 'Venta online', icon: ShoppingBag, detail: 'Tienda pública' },
-  { id: 'publicos', name: 'Panel de públicos', icon: UsersRound, detail: 'Ventas y cortesías' },
-  { id: 'scanner', name: 'Lector QR', icon: QrCode, detail: 'Control de acceso' },
-  { id: 'permisos', name: 'Usuarios y permisos', icon: Settings2, detail: 'Seguridad y equipo' },
+  { id: 'admin', name: 'Panel de eventos', icon: LayoutDashboard, detail: 'Crear eventos y gestionar lotes' },
+  { id: 'permisos', name: 'Panel de administración', icon: Settings2, detail: 'Usuarios, roles y permisos' },
+  { id: 'publicos', name: 'Panel de tickets', icon: TicketIcon, detail: 'Generación de entradas' },
+  { id: 'eventos', name: 'Panel de venta online', icon: ShoppingBag, detail: 'Tienda pública' },
 ];
+const scannerMenu = { id: 'scanner' as const, name: 'Lector QR · demo', icon: QrCode };
 
 function Sidebar({ page, setPage, open, setOpen, user, staff, previewId, onPreview }: {
   page: Page; setPage: (p: Page) => void; open: boolean; setOpen: (v: boolean) => void;
@@ -67,6 +67,10 @@ function Sidebar({ page, setPage, open, setOpen, user, staff, previewId, onPrevi
       <nav aria-label="Secciones principales" className="main-nav">{menu.filter(item => canAccessPage(user, item.id)).map(item => <a key={item.id} href={`#/${item.id}`} className={`nav-item ${page === item.id ? 'nav-active' : ''}`} onClick={() => { setPage(item.id); setOpen(false); }}>
         <item.icon size={19}/><span>{item.name}</span>{page === item.id && <span className="nav-rail"/>}
       </a>)}</nav>
+      {canAccessPage(user, 'scanner') && <><div className="sidebar-caption sidebar-tools-caption">LECTOR DE QR · PRÓXIMA ETAPA</div>
+        <nav aria-label="Herramientas de prueba" className="main-nav"><a href="#/scanner" className={`nav-item ${page === 'scanner' ? 'nav-active' : ''}`} onClick={() => { setPage('scanner'); setOpen(false); }}>
+          <scannerMenu.icon size={19}/><span>{scannerMenu.name}</span>{page === 'scanner' && <span className="nav-rail"/>}
+        </a></nav></>}
       <div className="sidebar-caption bottom-caption">PLATAFORMA</div>
       <div className="side-info"><ShieldCheck size={17}/><div><strong>Proyecto MCF</strong><small>Versión de desarrollo</small></div></div>
       <div className="sidebar-spacer"/>
@@ -81,7 +85,7 @@ function Sidebar({ page, setPage, open, setOpen, user, staff, previewId, onPrevi
 }
 
 function Topbar({ page, setOpen }: { page: Page; setOpen: (v: boolean) => void }) {
-  const current = menu.find(item => item.id === page)!;
+  const current = menu.find(item => item.id === page) ?? scannerMenu;
   return <header className="topbar"><div className="crumbs"><button className="menu-toggle" onClick={() => setOpen(true)} aria-label="Abrir menú"><Menu size={22}/></button><span>MCF Workspace</span><ChevronRight size={15}/><strong>{current.name}</strong></div>
     <div className="top-actions"><span className="top-mode"><span/> ENTORNO DEMO</span><span className="round-avatar">MC</span></div></header>;
 }
@@ -297,7 +301,7 @@ function PublicPage({ store, user, addTicket }: { store: Store; user: StaffMembe
 
   return <section className="page-content">
     <div className="page-heading"><div><div className="section-eyebrow">EQUIPO MCF <span className="eyebrow-line"/></div>
-      <h1>Panel de <span>públicos.</span></h1><p>Registrá entradas para tus eventos. La entrega de QR será directa al correo del titular.</p></div>
+      <h1>Panel de <span>tickets.</span></h1><p>Generá tickets para los eventos habilitados. La entrega de QR será directa al correo del titular.</p></div>
       <Pill tone="purple"><UsersRound size={14}/> {user?.role === 'admin' ? 'Administrador' : 'RR. PP.'}</Pill></div>
     <div className="demo-note"><CircleAlert size={17}/><span>Simulación local: no se envían correos reales. Los QR no se muestran a los RR. PP. y el bloqueo definitivo debe implementarse en Supabase.</span></div>
     <div className="public-assignment"><ShieldCheck size={19}/><span><strong>{promoter}</strong> · {allowedEvents.length} evento{allowedEvents.length !== 1 ? 's' : ''} habilitado{allowedEvents.length !== 1 ? 's' : ''} para emitir entradas.</span></div>
@@ -307,9 +311,9 @@ function PublicPage({ store, user, addTicket }: { store: Store; user: StaffMembe
       <div className="small-stat"><span>Cortesías generadas</span><strong>{issued.filter(t=>t.source==='cortesia').length}</strong><Sparkles size={22}/></div>
     </div>
     {!allowedEvents.length && <div className="public-no-events"><LockKeyhole size={30}/>
-      <h2>No tenés eventos habilitados</h2><p>El administrador debe autorizarte para una fiesta desde Usuarios y permisos. No podés generar entradas por ahora.</p></div>}
+      <h2>No tenés eventos habilitados</h2><p>El administrador debe autorizarte para una fiesta desde el Panel de administración. No podés generar entradas por ahora.</p></div>}
     {allowedEvents.length > 0 && <div className="public-layout">
-      <form className="panel public-form" onSubmit={generate}><div className="panel-title"><div><h2><UserRoundPlus size={21}/> Nueva entrada</h2>
+      <form className="panel public-form" onSubmit={generate}><div className="panel-title"><div><h2><UserRoundPlus size={21}/> Generar ticket</h2>
         <p>Registrada por {promoter}. El envío real del QR al cliente se activará con el servidor de correo.</p></div></div>
         <div className="form-stack">
           <label>Usuario emisor<input value={promoter} disabled aria-label="Usuario emisor"/></label>
@@ -325,7 +329,7 @@ function PublicPage({ store, user, addTicket }: { store: Store; user: StaffMembe
               <Sparkles size={20}/><strong>Invitación / cortesía</strong><small>Sin cargo</small></label>}</div>
           {!canInvite && <div className="public-invite-restriction"><LockKeyhole size={15}/> Las invitaciones sin cargo están reservadas al administrador. Solo él puede habilitarte este permiso para el evento.</div>}
           <div className="public-email-policy"><Mail size={18}/><span>Esta pantalla no ofrece visualizar, descargar, copiar ni reenviar el QR. La entrega final será a <strong>la dirección del cliente</strong>; falta protegerlo también desde el servidor.</span></div>
-          <Button type="submit" className="full-width" disabled={!tier}><Mail size={18}/> Registrar entrada para envío</Button>
+          <Button type="submit" className="full-width" disabled={!tier}><Mail size={18}/> Generar ticket para envío</Button>
         </div>
       </form>
       <section className="panel how-panel"><span className="how-icon"><ShieldCheck size={25}/></span><h2>Una entrada.<br/>Un código único.</h2>

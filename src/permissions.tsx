@@ -112,10 +112,10 @@ export function PermissionsPage({ staff, events, onChange, onPreview }: {
   }
 
   return <section className="page-content permissions-page">
-    <div className="page-heading"><div><div className="section-eyebrow">EQUIPO Y EVENTOS <span className="eyebrow-line"/></div>
-      <h1>Usuarios y <span>permisos.</span></h1>
-      <p>Elegí quién puede vender entradas y quién puede generar invitaciones de cada evento.</p></div>
-      <button className="btn btn-primary" onClick={() => { setShowNew(true); setError(''); }}><Plus size={17}/> Agregar persona</button>
+    <div className="page-heading"><div><div className="section-eyebrow">ADMINISTRACIÓN · USUARIOS Y PERMISOS <span className="eyebrow-line"/></div>
+      <h1>Panel de <span>administración.</span></h1>
+      <p>Creá, activá o desactivá usuarios; asigná roles y permisos de venta e invitaciones por evento.</p></div>
+      <button className="btn btn-primary" onClick={() => { setShowNew(true); setError(''); }}><Plus size={17}/> Crear usuario</button>
     </div>
 
     <div className="permissions-warning"><CircleAlert size={19}/><div><strong>Esta pantalla sigue siendo una demostración.</strong>

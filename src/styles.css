@@ -162,3 +162,8 @@
 .event-art:has(.event-art-cover) .art-grid,.event-art:has(.event-art-cover) .art-lines{opacity:.1}
 @media(max-width:800px){.event-history-filters{width:100%}.event-history-filters .search-box{flex:1;min-width:180px}.event-create-section{padding:20px}.event-batch-form{padding:15px}.event-admin-tabs{width:100%}.event-admin-tabs button{flex:1;justify-content:center;padding:12px 10px}.event-create-submit>.btn{width:100%}}
 @media(max-width:550px){.event-batch-sector{grid-template-columns:1fr 1fr 28px}.event-batch-sector label:first-child{grid-column:span 2}.event-batch-sector label:nth-child(3){grid-column:1}.event-batch-sector>button{grid-column:3;grid-row:1 / 3}.event-media-grid{grid-template-columns:1fr}.event-image-preview{height:160px}.event-url-field>label{min-width:0}.event-url-field>.btn{width:100%}.event-create-step h2{font-size:18px}}
+
+/* Menú principal en cuatro áreas; lector experimental en un bloque separado. */
+.sidebar{overflow-y:auto;scrollbar-width:thin;scrollbar-color:#39304c transparent}
+.sidebar-tools-caption{margin-top:24px;margin-bottom:10px;font-size:9px;letter-spacing:1.4px;line-height:1.5}
+.sidebar-tools-caption+.main-nav .nav-item{font-size:12px;color:#8e90aa}

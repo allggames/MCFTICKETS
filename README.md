@@ -1,12 +1,13 @@
 # MCF TICKETS
 
-Primera versión de una ticketera multi-evento para Argentina. Incluye cinco módulos:
+Primera versión de una ticketera multi-evento para Argentina. El menú principal contiene **cuatro áreas, en este orden**:
 
 - **Panel de eventos**: pestañas **Crear evento** y **Mis eventos** con historial completo, totales generales de tickets vendidos e ingresos brutos registrados. Crear evento incluye nombre, descripción opcional, fecha y hora, lugar, imagen, URL personalizable y tantos lotes/sectores como se necesiten, cada sector con precio y cupo propios. Cada lote se habilita manualmente. El administrador puede **forzar SOLD OUT en un lote individual** sin afectar los demás, aunque queden entradas; es definitivo y bloquea futuras modificaciones de cupo, precio y sectores de ese lote. **Cerrar evento** es una acción distinta, que detiene las ventas online y por RR. PP. de todos los lotes del evento, pero conserva historial y QR emitidos. Informes por evento/lote/sector y búsqueda de emisiones por titular o público, con acceso administrativo al QR de prueba.
-- **Tienda pública**: catálogo de eventos, sectores y formulario de comprador; muestra un comprobante sin QR. El QR se enviará por correo cuando exista backend real.
-- **Públicos / RR. PP.**: registro de ventas informadas limitado a eventos autorizados, sin ver, copiar ni descargar el QR en la interfaz. Solo se muestran titular, correo destino, tipo y estado de entrega; el emisor se toma del perfil activo. Las invitaciones/cortesías sin cargo están reservadas al administrador salvo autorización adicional individual para un evento.
-- **Lector QR**: lectura con cámara y validación de tickets únicos.
-- **Usuarios y permisos**: dos roles fijos (administrador y RR. PP.), asignaciones de venta por evento individuales o masivas y permiso separado de emisión de invitaciones/cortesías. El administrador puede conceder o retirar este permiso por RR. PP. y evento; inicia siempre desactivado. También incluye búsqueda, suspensión, prueba de perfiles y rutas restringidas. La configuración del personal del lector QR se hará más adelante.
+- **Panel de administración**: crear, activar, desactivar y buscar usuarios; dos roles fijos (administrador y RR. PP.), asignaciones de venta por evento individuales o masivas y permiso separado de emisión de invitaciones/cortesías. El administrador puede conceder o retirar este permiso por RR. PP. y evento; inicia siempre desactivado. También incluye suspensión, prueba de perfiles y rutas restringidas.
+- **Panel de tickets**: generar tickets y registrar ventas informadas, limitado a eventos autorizados para cada RR. PP., sin ver, copiar ni descargar el QR en su interfaz. Solo se muestran titular, correo destino, tipo y estado de entrega; el emisor se toma del perfil activo. Las invitaciones/cortesías sin cargo están reservadas al administrador salvo autorización adicional individual para un evento.
+- **Panel de venta online**: tienda pública con catálogo de eventos, sectores y formulario de comprador; muestra un comprobante sin QR. El QR se enviará por correo cuando exista backend real.
+
+El **Lector QR** se mantiene como herramienta de demostración separada, debajo del menú principal. Lee códigos desde la cámara y simula la validación de entradas únicas. La configuración real del personal y los permisos del lector se desarrollarán más adelante.
 
 > **Estado actual: prototipo interactivo (modo demo).** La interfaz utiliza datos de ejemplo y `localStorage`. No procesa pagos reales, no envía correos, no autentica operadores y **no** sirve para validar entradas reales. **El selector de perfiles y el bloqueo visual de rutas NO son controles de seguridad:** cualquier visitante puede elegir un perfil de prueba. No usar información real ni invitar operadores hasta conectar Supabase Auth y aplicar autorización del lado del servidor. La estructura inicial de Supabase está aplicada al proyecto MCF, pero el frontend todavía no consume esos datos.
 
@@ -38,15 +39,15 @@ La navegación usa fragmentos de URL, lo que permite servir el frontend desde Gi
 | Área | URL local |
 | --- | --- |
 | Panel de eventos | `/app.html#/admin` |
-| Venta online | `/app.html#/eventos` |
-| Públicos | `/app.html#/publicos` |
-| Lector | `/app.html#/scanner` |
-| Usuarios y permisos | `/app.html#/permisos` |
+| Panel de administración | `/app.html#/permisos` |
+| Panel de tickets | `/app.html#/publicos` |
+| Panel de venta online | `/app.html#/eventos` |
+| Lector QR (demo separada) | `/app.html#/scanner` |
 
 ### Permisos de prueba
 
 - **Administrador**: ve todos los módulos, incluida la gestión de usuarios y la tienda.
-- **RR. PP.**: solo ve el panel de públicos y, dentro de él, exclusivamente los eventos publicados que le hayan asignado. Si no tiene eventos, no puede emitir entradas.
+- **RR. PP.**: solo ve el panel de tickets y, dentro de él, exclusivamente los eventos publicados que le hayan asignado. Si no tiene eventos, no puede emitir entradas.
 - **Invitaciones/cortesías**: por defecto solo el administrador puede generar QR sin cargo. En el panel de permisos puede otorgar este permiso a un RR. PP. para un evento concreto, siempre que ya esté habilitado para vender ese evento. Al quitar su acceso al evento, también pierde el permiso de invitaciones.
 - **Visitante**: solo ve la tienda pública.
 - El administrador puede preparar personas pendientes, activar/suspender perfiles y habilitar/deshabilitar RR. PP. **por evento**. Es posible buscar y aplicar permisos de venta en bloque (con confirmación), por ejemplo habilitar 10 RR. PP. para un evento y 50 para otro. Las invitaciones se autorizan de manera individual. Se guarda únicamente en el navegador.
