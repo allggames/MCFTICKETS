@@ -3,7 +3,7 @@ import {
   CalendarDays, Check, CircleAlert, ClipboardList, Eye, Layers3, Pencil,
   Plus, QrCode, Search, TicketCheck, Wallet, X,
 } from 'lucide-react';
-import { dateLabel, formatMoney, makeId, type Batch, type EventItem, type Ticket, type Tier } from './data';
+import { dateLabel, formatMoney, makeId, type Batch, type CapacityChange, type EventItem, type Ticket, type Tier } from './data';
 
 type SectorInput = { key: string; name: string; price: string; capacity: string };
 
@@ -35,6 +35,10 @@ export function AdminEventManager({ event, tickets, onChange, onViewTicket }: {
   const [batchName, setBatchName] = useState('');
   const [sectors, setSectors] = useState<SectorInput[]>([blankSector()]);
   const [formError, setFormError] = useState('');
+  const [capacityTier, setCapacityTier] = useState<Tier | null>(null);
+  const [additionalCapacity, setAdditionalCapacity] = useState('50');
+  const [capacityReason, setCapacityReason] = useState('');
+  const [capacityError, setCapacityError] = useState('');
 
   useEffect(() => {
     setDetails({ title: event.title, date: event.date, time: event.time,
@@ -53,6 +57,8 @@ export function AdminEventManager({ event, tickets, onChange, onViewTicket }: {
   const batchTickets = (id: string) => eventTickets.filter(t => event.tiers.find(s => s.id === t.tierId)?.batchId === id);
   const issued = (rows: Ticket[]) => rows.filter(t => t.status !== 'void').length;
   const totalCapacity = event.tiers.reduce((sum, tier) => sum + tier.capacity, 0);
+  const capacityHistory = (event.capacityChanges ?? []).filter(change => change.batchId === selectedBatch?.id)
+    .slice().reverse();
   const filteredTickets = eventTickets.filter(t => {
     const tier = event.tiers.find(s => s.id === t.tierId);
     const query = ticketSearch.trim().toLowerCase();
@@ -93,8 +99,16 @@ export function AdminEventManager({ event, tickets, onChange, onViewTicket }: {
       setFormError('Revisá los sectores: nombres únicos, precios desde $0 y cupos enteros mayores a 0.'); return;
     }
     const id = editingBatchId ?? makeId();
-    if (editingBatchId && issued(batchTickets(id)) > 0) {
-      setFormError('No se puede modificar un lote con entradas emitidas. Podés crear otro lote.'); return;
+    const previousTiers = event.tiers.filter(t => t.batchId === id);
+    for (const old of previousTiers) {
+      const existingSold = issued(eventTickets.filter(t => t.tierId === old.id));
+      const next = sectors.find(s => s.key === old.id);
+      if (existingSold && (!next || next.name.trim() !== old.name)) {
+        setFormError(`El sector ${old.name} ya tiene entradas emitidas: no podés quitarlo ni renombrarlo.`); return;
+      }
+      if (next && Number(next.capacity) < existingSold) {
+        setFormError(`El cupo de ${old.name} no puede ser menor a ${existingSold} entradas emitidas.`); return;
+      }
     }
     const newTiers: Tier[] = sectors.map(s => ({
       id: editingBatchId ? s.key : makeId(), batchId: id,
@@ -103,10 +117,37 @@ export function AdminEventManager({ event, tickets, onChange, onViewTicket }: {
     const nextBatches: Batch[] = editingBatchId
       ? event.batches.map(b => b.id === id ? { ...b, name: cleanName } : b)
       : [...event.batches, { id, name: cleanName, status: event.batches.some(b => b.status === 'active') ? 'draft' : 'active' }];
+    const now = new Date().toISOString();
+    const edits: CapacityChange[] = previousTiers.flatMap(old => {
+      const next = newTiers.find(t => t.id === old.id);
+      if (!next || next.capacity === old.capacity) return [];
+      return [{ id: makeId(), batchId: id, tierId: old.id, previous: old.capacity,
+        next: next.capacity, delta: next.capacity - old.capacity, reason: 'Edición de lote',
+        actor: 'Administrador (demo)', createdAt: now }];
+    });
     onChange({ ...event, batches: nextBatches,
-      tiers: [...event.tiers.filter(t => t.batchId !== id), ...newTiers] });
+      tiers: [...event.tiers.filter(t => t.batchId !== id), ...newTiers],
+      capacityChanges: [...(event.capacityChanges ?? []), ...edits] });
     setSelectedBatchId(id);
     setShowBatchForm(false);
+  }
+
+  function addCapacity(e: React.FormEvent) {
+    e.preventDefault();
+    if (!capacityTier) return;
+    const extra = Number(additionalCapacity);
+    const next = capacityTier.capacity + extra;
+    if (!Number.isSafeInteger(extra) || extra <= 0 || !Number.isSafeInteger(next)) {
+      setCapacityError('Ingresá una cantidad entera de entradas mayor a cero.'); return;
+    }
+    const change: CapacityChange = { id: makeId(), batchId: capacityTier.batchId, tierId: capacityTier.id,
+      previous: capacityTier.capacity, next, delta: extra,
+      reason: capacityReason.trim() || 'Ampliación de cupo', actor: 'Administrador (demo)',
+      createdAt: new Date().toISOString() };
+    onChange({ ...event, tiers: event.tiers.map(t => t.id === capacityTier.id ? { ...t, capacity: next } : t),
+      capacityChanges: [...(event.capacityChanges ?? []), change] });
+    setCapacityTier(null);
+    setAdditionalCapacity('50'); setCapacityReason(''); setCapacityError('');
   }
 
   function setBatchStatus(id: string, status: Batch['status']) {
@@ -158,18 +199,26 @@ export function AdminEventManager({ event, tickets, onChange, onViewTicket }: {
       <div className="panel-title"><div><h2>{selectedBatch.name} <span className={`pill pill-${batchTone(selectedBatch.status)}`}>{batchLabel(selectedBatch.status)}</span></h2>
         <p>Desglose de entradas y recaudación por sector</p></div>
         <div className="adm-inline-actions">
-          {issued(batchTickets(selectedBatch.id)) === 0 && <button className="btn btn-secondary" onClick={() => startBatch(selectedBatch)}><Pencil size={14}/> Editar</button>}
+          <button className="btn btn-secondary" onClick={() => startBatch(selectedBatch)}><Pencil size={14}/> Editar lote</button>
           {selectedBatch.status !== 'active' && <button className="btn btn-primary" onClick={() => setBatchStatus(selectedBatch.id, 'active')}><Check size={14}/> Activar lote</button>}
           {selectedBatch.status === 'active' && <button className="btn btn-secondary" onClick={() => setBatchStatus(selectedBatch.id, 'closed')}><X size={14}/> Cerrar lote</button>}
         </div></div>
-      <div className="table-scroll"><table className="data-table"><thead><tr><th>SECTOR</th><th>PRECIO</th><th>EMITIDAS / CUPO</th><th>COBRADO ONLINE*</th><th>INFORMADO POR PÚBLICOS</th><th>CORTESÍAS</th></tr></thead>
+      <div className="table-scroll"><table className="data-table"><thead><tr><th>SECTOR</th><th>PRECIO</th><th>EMITIDAS / CUPO</th><th>COBRADO ONLINE*</th><th>INFORMADO POR PÚBLICOS</th><th>CORTESÍAS</th><th>DISPONIBILIDAD</th></tr></thead>
         <tbody>{selectedTiers.map(tier => {
           const rows = eventTickets.filter(t => t.tierId === tier.id);
           return <tr key={tier.id}><td><strong>{tier.name}</strong></td><td>{formatMoney(tier.price)}</td>
             <td><strong>{issued(rows)}</strong> / {tier.capacity}</td><td>{formatMoney(paidTotal(rows, 'approved'))}</td>
-            <td>{formatMoney(paidTotal(rows, 'reported'))}</td><td>{rows.filter(t => t.source === 'cortesia' && t.status !== 'void').length}</td></tr>;
+            <td>{formatMoney(paidTotal(rows, 'reported'))}</td><td>{rows.filter(t => t.source === 'cortesia' && t.status !== 'void').length}</td>
+            <td><button className="adm-open-qr" onClick={() => { setCapacityTier(tier); setAdditionalCapacity('50'); setCapacityReason(''); setCapacityError(''); }}><Plus size={14}/> Sumar entradas</button></td></tr>;
         })}</tbody></table></div>
-      <p className="adm-helper">* En esta demo, los pagos online se simulan. En producción solo contarán como cobrados los confirmados por Mercado Pago.</p>
+      {capacityHistory.length > 0 && <div className="adm-capacity-history"><strong>Historial de ajustes de cupo</strong>
+        {capacityHistory.slice(0, 8).map(change => <div key={change.id} className="adm-capacity-change">
+          <span>{event.tiers.find(t => t.id === change.tierId)?.name ?? 'Sector'} · {change.delta > 0 ? `+${change.delta}` : change.delta} entradas</span>
+          <small>{change.previous} → {change.next} · {change.actor} · {new Date(change.createdAt).toLocaleString('es-AR')}</small>
+          <small>{change.reason}</small>
+        </div>)}
+      </div>}
+      <p className="adm-helper">* En esta demo, los pagos online se simulan. Los cupos son independientes por sector y lote; se pueden ampliar aunque ya existan QR emitidos.</p>
     </div>}
 
     <div className="panel adm-qr-panel"><div className="panel-title"><div><h2><QrCode size={19}/> Control de QR emitidos</h2>
@@ -212,9 +261,25 @@ export function AdminEventManager({ event, tickets, onChange, onViewTicket }: {
           <button type="button" className="adm-remove-sector" title="Quitar sector" disabled={sectors.length === 1} onClick={() => setSectors(s => s.filter(row => row.key !== sector.key))}><X size={17}/></button>
         </div>)}</div>
         {formError && <div className="form-error"><CircleAlert size={15}/>{formError}</div>}
-        <div className="adm-data-note"><TicketCheck size={16}/> El lote nuevo quedará en espera si ya hay otro activo. Podrás activarlo desde el panel.</div>
+        <div className="adm-data-note"><TicketCheck size={16}/> Podés aumentar cupos, sumar sectores y modificar precios para futuras ventas. Los importes ya registrados no cambian. Los sectores con entradas emitidas no se pueden quitar ni renombrar.</div>
         <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={() => setShowBatchForm(false)}>Cancelar</button>
           <button type="submit" className="btn btn-primary"><Wallet size={16}/> {editingBatchId ? 'Guardar cambios' : 'Crear lote'}</button></div>
+      </form>
+    </div>}
+    {capacityTier && <div className="modal-layer" onMouseDown={e => { if (e.target === e.currentTarget) setCapacityTier(null); }}>
+      <form className="modal-card adm-capacity-modal" onSubmit={addCapacity}>
+        <div className="modal-header"><div><h2>Sumar entradas disponibles</h2>
+          <p>{selectedBatch?.name} · {capacityTier.name} · {formatMoney(capacityTier.price)}</p></div>
+          <button className="icon-button" type="button" aria-label="Cerrar" onClick={() => setCapacityTier(null)}><X size={19}/></button></div>
+        <div className="adm-capacity-preview"><div><small>Cupo actual</small><strong>{capacityTier.capacity}</strong></div>
+          <div><small>Ya emitidas</small><strong>{issued(eventTickets.filter(t => t.tierId === capacityTier.id))}</strong></div>
+          <div><small>Nuevo cupo</small><strong>{Number.isSafeInteger(Number(additionalCapacity)) && Number(additionalCapacity) > 0 ? capacityTier.capacity + Number(additionalCapacity) : '—'}</strong></div></div>
+        <div className="form-stack"><label>¿Cuántas entradas querés agregar?<input type="number" min="1" step="1" required value={additionalCapacity} onChange={e => setAdditionalCapacity(e.target.value)}/></label>
+          <label>Motivo del ajuste (opcional)<input maxLength={180} placeholder="Ej. Se habilitaron 50 lugares más" value={capacityReason} onChange={e => setCapacityReason(e.target.value)}/></label></div>
+        {capacityError && <p className="form-error"><CircleAlert size={15}/>{capacityError}</p>}
+        <p className="adm-helper">Esta acción mantiene intactos todos los QR y entradas ya emitidos.</p>
+        <div className="modal-footer"><button className="btn btn-secondary" type="button" onClick={() => setCapacityTier(null)}>Cancelar</button>
+          <button className="btn btn-primary" type="submit"><Plus size={16}/> Confirmar ampliación</button></div>
       </form>
     </div>}
   </section>;
