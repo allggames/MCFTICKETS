@@ -2,7 +2,7 @@
 
 Primera versión de una ticketera multi-evento para Argentina. Incluye cuatro módulos:
 
-- **Administrador**: eventos, resumen de ingresos registrados, emisión de tickets y uso de QR.
+- **Administrador**: crear y editar eventos; lotes con sectores, precios y cupos; reportes por evento/lote/sector; búsqueda de emisiones por titular o público y acceso al QR de prueba.
 - **Tienda pública**: catálogo de eventos, sectores y formulario de comprador.
 - **Públicos / RR. PP.**: registro de ventas informadas y entradas de cortesía.
 - **Lector QR**: lectura con cámara y validación de tickets únicos.
@@ -18,7 +18,7 @@ npm install
 npm run dev
 ```
 
-Abrí la URL indicada por Vite (generalmente `http://localhost:4173`). Para generar los archivos estáticos:
+Abrí `http://localhost:4173/app.html` en desarrollo. Para generar los archivos estáticos:
 
 ```bash
 npm run build
@@ -26,16 +26,16 @@ npm run build
 
 ### Publicación en GitHub Pages
 
-El workflow `.github/workflows/deploy.yml` compila Vite y publica la carpeta `dist/` en cada actualización de `main`. En el repositorio de GitHub, entrá en **Settings → Pages → Build and deployment → Source** y seleccioná **GitHub Actions**. URL del prototipo: https://allggames.github.io/MCFTICKETS/.
+El workflow `.github/workflows/deploy.yml` compila Vite y publica la carpeta `dist/` en cada actualización de `main`. Para que también funcione cuando Pages publica `main/(root)`, `index.html` y `assets/` contienen una versión compilada. La fuente editable de Vite es `app.html` y `src/`; la versión compilada debe actualizarse con cada publicación si se usa la modalidad por rama. URL del prototipo: https://allggames.github.io/MCFTICKETS/.
 
 La navegación usa fragmentos de URL, lo que permite servir el frontend desde GitHub Pages sin reglas especiales de redirección:
 
 | Área | URL local |
 | --- | --- |
-| Administración | `/#/admin` |
-| Venta online | `/#/eventos` |
-| Públicos | `/#/publicos` |
-| Lector | `/#/scanner` |
+| Administración | `/app.html#/admin` |
+| Venta online | `/app.html#/eventos` |
+| Públicos | `/app.html#/publicos` |
+| Lector | `/app.html#/scanner` |
 
 ## Modelo de datos propuesto
 
@@ -43,7 +43,8 @@ La migración está en `supabase/migrations/`. Contiene:
 
 - `profiles`: usuarios internos y roles (`admin`, `promoter`, `scanner`).
 - `events`: eventos con estados borrador, publicado y cerrado.
-- `ticket_types`: sectores, precios en centavos de ARS y capacidad.
+- `ticket_batches`: lotes de cada evento (en espera, activo o cerrado).
+- `ticket_types`: sectores, precios en centavos de ARS y capacidad dentro de cada lote.
 - `event_staff`: permisos por evento y cupos de cortesías.
 - `orders`: origen de emisión, responsable, monto y estado del pago.
 - `tickets`: token **hasheado** (no se expone el token a través de SELECT), estado de ingreso y operador.
@@ -54,7 +55,7 @@ La migración está en `supabase/migrations/`. Contiene:
 ### Integración de Supabase
 
 1. [x] Crear el proyecto MCF TICKETS aislado de HOST (`takzwkxidydafgsjiqol`).
-2. [x] Aplicar y verificar la migración inicial: siete tablas con RLS.
+2. [x] Aplicar y verificar la migración inicial y la ampliación de lotes: ocho tablas con RLS.
 3. [ ] Registrar los usuarios internos y otorgar el primer administrador por SQL con su `auth.users.id` verificado.
 4. [ ] Conectar el frontend usando únicamente `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`. Nunca exponer una secret key en el navegador.
 5. [ ] Implementar autenticación real, enlazar los paneles a las tablas y pasar las operaciones sensibles a funciones protegidas del servidor.
@@ -89,6 +90,7 @@ Las credenciales privadas (`MP_ACCESS_TOKEN`, firma de webhook y credencial de c
 
 - [x] Compilación de React/TypeScript/Vite.
 - [x] Demo de creación de eventos, compra simulada, emisión manual y QR.
+- [x] Demo de lotes, sectores, precios, cupos e informes desglosados en el administrador.
 - [x] Demo del lector QR con cámara (sujeto a permisos HTTPS) o código manual.
 - [ ] Pruebas en Supabase conectado con diferentes roles.
 - [ ] Pruebas de compra Mercado Pago sandbox y webhook.
