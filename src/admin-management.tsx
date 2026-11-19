@@ -269,6 +269,7 @@ export function AdminEventManager({ event, existingEvents, tickets, onChange, on
             title={activeBatch ? `Primero cerrá ${activeBatch.name}` : 'Habilitar ventas de este lote'}
             onClick={() => setPendingBatchAction({ id: selectedBatch.id, status: 'active' })}><Check size={14}/> Abrir ventas</button>}
           {!selectedSoldOut && selectedBatch.status === 'active' && <button className="btn btn-secondary" onClick={() => setPendingBatchAction({ id: selectedBatch.id, status: 'closed' })}><X size={14}/> Pausar ventas</button>}
+          {selectedSoldOut && selectedBatch.status === 'active' && <button className="btn btn-secondary" onClick={() => setPendingBatchAction({ id: selectedBatch.id, status: 'closed' })}><X size={14}/> Cerrar lote agotado</button>}
           {selectedBatch.status !== 'sold_out' && <button className="btn btn-soldout" onClick={() => setPendingBatchAction({ id: selectedBatch.id, status: 'sold_out' })}><X size={14}/> Forzar SOLD OUT</button>}
         </div></div>
       {selectedBatch.status !== 'active' && activeBatch && <p className="adm-manual-hint">Para abrir {selectedBatch.name}, primero cerrá las ventas de {activeBatch.name}. Esto no sucederá automáticamente.</p>}
