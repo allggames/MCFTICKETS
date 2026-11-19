@@ -7,7 +7,7 @@ Primera versión de una ticketera multi-evento para Argentina. Incluye cuatro m�
 - **Públicos / RR. PP.**: registro de ventas informadas y entradas de cortesía.
 - **Lector QR**: lectura con cámara y validación de tickets únicos.
 
-> **Estado actual: prototipo interactivo (modo demo).** La interfaz utiliza datos de ejemplo y `localStorage`. No procesa pagos reales, no envía correos, no autentica operadores y **no** sirve para validar entradas reales. La migración de Supabase incluida es una base para la futura integración, pero todavía no fue aplicada a una base de producción.
+> **Estado actual: prototipo interactivo (modo demo).** La interfaz utiliza datos de ejemplo y `localStorage`. No procesa pagos reales, no envía correos, no autentica operadores y **no** sirve para validar entradas reales. La estructura inicial de Supabase está aplicada al proyecto MCF, pero el frontend todavía no consume esos datos.
 
 ## Ejecutarlo
 
@@ -23,6 +23,10 @@ Abrí la URL indicada por Vite (generalmente `http://localhost:4173`). Para gene
 ```bash
 npm run build
 ```
+
+### Publicación en GitHub Pages
+
+El workflow `.github/workflows/deploy.yml` compila Vite y publica la carpeta `dist/` en cada actualización de `main`. En el repositorio de GitHub, entrá en **Settings → Pages → Build and deployment → Source** y seleccioná **GitHub Actions**. URL del prototipo: https://allggames.github.io/MCFTICKETS/.
 
 La navegación usa fragmentos de URL, lo que permite servir el frontend desde GitHub Pages sin reglas especiales de redirección:
 
@@ -47,13 +51,14 @@ La migración está en `supabase/migrations/`. Contiene:
 
 **Reglas de seguridad del esquema:** RLS activado en todas las tablas públicas; visitantes anónimos solo pueden leer eventos y sectores publicados; los operadores tienen permisos por rol y evento. La función `issue_staff_ticket` controla permisos y cupos. `redeem_ticket` utiliza una actualización atómica para que un QR solo permita el primer ingreso válido.
 
-### Integración de Supabase (pendiente)
+### Integración de Supabase
 
-1. Crear un proyecto **nuevo y aislado** llamado MCF TICKETS. No reutilizar la base de datos de HOST.
-2. Revisar la migración con el equipo y aplicarla al proyecto nuevo (primero en desarrollo). Registrar los usuarios internos y otorgar el primer administrador por SQL con su `auth.users.id` verificado.
-3. Conectar el frontend usando únicamente `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`. Nunca exponer una secret key en el navegador.
-4. Implementar la autenticación real, enlazar los paneles a las tablas y pasar las operaciones sensibles a funciones protegidas del servidor.
-5. Ejecutar pruebas multiusuario: público sin permisos, cuotas agotadas, QR repetido, escaneo cruzado entre eventos y dos escáneres simultáneos.
+1. [x] Crear el proyecto MCF TICKETS aislado de HOST (`takzwkxidydafgsjiqol`).
+2. [x] Aplicar y verificar la migración inicial: siete tablas con RLS.
+3. [ ] Registrar los usuarios internos y otorgar el primer administrador por SQL con su `auth.users.id` verificado.
+4. [ ] Conectar el frontend usando únicamente `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`. Nunca exponer una secret key en el navegador.
+5. [ ] Implementar autenticación real, enlazar los paneles a las tablas y pasar las operaciones sensibles a funciones protegidas del servidor.
+6. [ ] Ejecutar pruebas multiusuario: público sin permisos, cuotas agotadas, QR repetido, escaneo cruzado entre eventos y dos escáneres simultáneos.
 
 **La migración todavía no cubre todo el proceso de reservas y pagos online:** antes de activar cobros reales hacen falta bloqueo de cupos concurrente para compras, vencimiento de reservas, conciliación de reembolsos, reenvío de tickets y gestión de contracargos.
 
