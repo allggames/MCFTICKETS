@@ -205,13 +205,37 @@ function TicketDialog({ ticket, event, onClose }: { ticket: Ticket; event: Event
   return <div className="modal-layer" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}><div className="ticket-dialog"><button className="ticket-close" onClick={onClose} aria-label="Cerrar"><X size={22}/></button><div className="ticket-dialog-top"><Brand compact/><Pill tone="purple">ENTRADA DEMO</Pill></div><div className="ticket-hero"><span>ENTRADA PARA</span><h2>{event.title}</h2><p>{dateLabel(event.date)} · {event.time} hs</p></div><div className="ticket-qr">{qr && <img src={qr} alt="Código QR de prueba"/>}<span>Escaneá este código en el lector de prueba</span></div><div className="ticket-fields"><div><small>TITULAR</small><strong>{ticket.holder}</strong></div><div><small>LOTE · SECTOR</small><strong>{batch} · {tier}</strong></div><div><small>CÓDIGO</small><strong>{ticket.id.slice(0, 8).toUpperCase()}</strong></div><div><small>ESTADO</small><strong>{ticket.status === 'valid' ? 'Válido' : ticket.status === 'used' ? 'Utilizado' : 'Anulado'}</strong></div><div><small>GENERADO POR</small><strong>{ticket.source === 'online' ? 'Tienda MCF' : ticket.promoter || 'Sin asignar'}</strong></div><div><small>EMAIL DESTINO</small><strong>{ticket.email}</strong></div></div><div className="ticket-dialog-bottom"><Button variant="secondary" onClick={() => navigator.clipboard?.writeText(ticket.token)}><Copy size={17}/> Copiar QR</Button><a className="btn btn-primary" href={qr} download={`MCF-${ticket.id.slice(0, 8)}.png`}><Download size={17}/> Descargar</a></div><p className="ticket-disclaimer">QR de prueba: no permite el ingreso a un evento real ni se envía por correo.</p></div></div>;
 }
 
+// Los compradores y RR. PP. reciben solamente un comprobante sin token.
+// El envío real del QR se hará exclusivamente en el servidor cuando haya correo configurado.
+type EmailReceipt = Pick<Ticket, 'id' | 'holder' | 'email'>;
+
+function EmailReceiptDialog({ receipt, event, source, onClose }: {
+  receipt: EmailReceipt; event: EventItem; source: 'online' | 'publico'; onClose: () => void;
+}) {
+  return <div className="modal-layer" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="modal-card email-receipt-modal" role="dialog" aria-modal="true" aria-labelledby="email-receipt-title">
+      <button className="ticket-close" onClick={onClose} aria-label="Cerrar"><X size={22}/></button>
+      <div className="email-receipt-icon"><Mail size={32}/></div>
+      <Pill tone="green">REGISTRO DE PRUEBA</Pill>
+      <h2 id="email-receipt-title">{source === 'online' ? 'Compra simulada registrada' : 'Solicitud de entrada registrada'}</h2>
+      <p>El QR de ingreso debe enviarse exclusivamente al correo del titular. No se muestra ni se entrega al RR. PP.</p>
+      <div className="email-receipt-details"><span>EVENTO</span><strong>{event.title}</strong>
+        <span>TITULAR</span><strong>{receipt.holder}</strong>
+        <span>CORREO DESTINO</span><strong>{receipt.email}</strong>
+        <span>REFERENCIA</span><strong>{receipt.id.slice(0, 8).toUpperCase()}</strong></div>
+      <div className="email-receipt-warning"><CircleAlert size={18}/><span><strong>Correo no enviado.</strong> Esto es una demostración: todavía no hay servicio de email conectado ni pago real confirmado.</span></div>
+      <Button className="full-width" onClick={onClose}>Entendido <Check size={17}/></Button>
+    </div>
+  </div>;
+}
+
 function ShopPage({ store, addTicket }: { store: Store; addTicket: (ticket: Ticket) => void }) {
   const published = store.events.filter(event => event.status === 'published');
   const [selected, setSelected] = useState<string | null>(null);
   const [tierId, setTierId] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [ticket, setTicket] = useState<Ticket | null>(null);
+  const [ticket, setTicket] = useState<EmailReceipt | null>(null);
   const event = published.find(e => e.id === selected) ?? null;
   const availableTiers = event ? sellableTiers(event) : [];
   const tier = availableTiers.find(t => t.id === tierId) ?? null;
@@ -221,14 +245,15 @@ function ShopPage({ store, addTicket }: { store: Store; addTicket: (ticket: Tick
     if (!event || !tier || !name.trim() || !email.includes('@')) return;
     if (store.tickets.filter(t => t.tierId === tier.id && t.status !== 'void').length >= tier.capacity) return;
     const newTicket = makeDemoTicket(event.id, tier.id, name.trim(), email.trim(), 'online', '', tier.price);
-    addTicket(newTicket); setTicket(newTicket);
+    addTicket(newTicket);
+    setTicket({ id: newTicket.id, holder: newTicket.holder, email: newTicket.email });
   }
 
   return <section className="page-content"><div className="page-heading"><div><div className="section-eyebrow">MCF TICKETS <span className="eyebrow-line"/></div><h1>Viví el momento. <span>Elegí tu evento.</span></h1><p>Explorá los próximos eventos y elegí la entrada ideal.</p></div><Pill tone="purple"><Sparkles size={13}/> Compra online</Pill></div>
-    <div className="demo-note"><CircleAlert size={17}/><span>Esta tienda es una demostración. El botón final simula una compra: no se cobra dinero.</span></div>
+    <div className="demo-note"><CircleAlert size={17}/><span>Esta tienda es una demostración: no se cobra dinero y todavía no se envían entradas por email. El QR nunca se mostrará en el comprobante del comprador.</span></div>
     {!event ? <><div className="shop-feature"><div className="feature-copy"><Pill tone="purple">EXPERIENCIAS MCF</Pill><h2>Las mejores noches<br/><em>empiezan acá.</em></h2><p>Un lugar para todas tus experiencias. Elegí tu evento, tu sector y disfrutá.</p><div className="feature-stats"><span><strong>{published.length}</strong> EVENTOS DISPONIBLES</span><span><strong>100%</strong> DIGITAL</span></div></div><div className="feature-visual"><span className="feature-ring"/><TicketIcon size={112} strokeWidth={1} /></div></div><div className="section-row"><h2>Próximos eventos <span className="muted-count">{published.length}</span></h2><span className="subtle">Explorar todos</span></div><div className="event-card-grid">{published.map(item => <article className="shop-event-card" key={item.id}><EventArtwork event={item}/><div className="shop-event-body"><div className="event-card-meta"><CalendarDays size={14}/>{dateLabel(item.date)} <span>·</span> {item.time} hs</div><h3>{item.title}</h3><p>{item.venue} · {item.city}</p><div className="shop-event-bottom"><div><small>Desde</small><strong>{sellableTiers(item).length ? formatMoney(Math.min(...sellableTiers(item).map(t => t.price))) : 'Sin lote activo'}</strong></div><Button onClick={() => chooseEvent(item.id)}>Ver entradas <ArrowRight size={17}/></Button></div></div></article>)}</div></>
       : <><button className="back-link" onClick={() => setSelected(null)}><ChevronLeft size={17}/> Volver a eventos</button><div className="checkout-grid"><div><EventArtwork event={event}/><div className="panel event-description"><h2>{event.title}</h2><p>{event.subtitle}</p><div className="detail-row"><CalendarDays size={18}/>{dateLabel(event.date)} · {event.time} hs</div><div className="detail-row"><Smartphone size={18}/>{event.venue}, {event.city}</div><div className="detail-row"><Mail size={18}/> En la versión final, recibís tu QR por email.</div></div></div><form className="panel checkout-form" onSubmit={placeOrder}><div className="panel-title"><div><h2>Elegí tu entrada</h2><p>Seleccioná un sector para continuar</p></div></div><div className="tier-list">{availableTiers.map(t => { const remaining = t.capacity - store.tickets.filter(ticket => ticket.tierId === t.id && ticket.status !== 'void').length; return <label className={`tier-option ${tierId === t.id ? 'tier-selected' : ''}`} key={t.id}><input type="radio" name="tier" value={t.id} checked={tierId === t.id} disabled={remaining <= 0} onChange={() => setTierId(t.id)}/><span className="radio-fake"/><span><strong>{t.name}</strong><small>{remaining} disponibles</small></span><b>{formatMoney(t.price)}</b></label>; })}</div>{!availableTiers.length && <p className="adm-helper">Todavía no hay un lote activo para este evento.</p>}<div className="divider"/><h3>Datos del titular</h3><div className="form-stack"><label>Nombre y apellido<input required value={name} onChange={e => setName(e.target.value)} placeholder="Nombre completo"/></label><label>Correo electrónico<input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="nombre@correo.com"/></label></div><div className="checkout-summary"><span>Total de prueba</span><strong>{formatMoney(tier?.price ?? 0)}</strong></div><Button type="submit" className="full-width" disabled={!tier}><CreditCard size={18}/> Simular compra</Button><p className="checkout-note"><LockKeyhole size={14}/> Mercado Pago se conectará para la versión real.</p></form></div></>}
-    {ticket && event && <TicketDialog ticket={ticket} event={event} onClose={() => setTicket(null)}/>}</section>;
+    {ticket && event && <EmailReceiptDialog receipt={ticket} event={event} source="online" onClose={() => setTicket(null)}/>}</section>;
 }
 
 function PublicPage({ store, user, addTicket }: { store: Store; user: StaffMember | null; addTicket: (ticket: Ticket) => void }) {
@@ -242,7 +267,7 @@ function PublicPage({ store, user, addTicket }: { store: Store; user: StaffMembe
   const [email, setEmail] = useState('');
   // La autoría de las entradas proviene del perfil activo, no de un desplegable editable.
   const promoter = user?.name ?? '';
-  const [generated, setGenerated] = useState<Ticket | null>(null);
+  const [generated, setGenerated] = useState<EmailReceipt | null>(null);
   const tier = activeTiers.find(t => t.id === tierId) ?? activeTiers[0];
   const canInvite = Boolean(event && canIssueInvitation(user, event.id));
   const issueKind = canInvite ? kind : 'publico';
@@ -255,14 +280,16 @@ function PublicPage({ store, user, addTicket }: { store: Store; user: StaffMembe
     // El permiso se verifica al emitir, no solamente al mostrar el botón.
     const authorizedKind = canIssueInvitation(user, event.id) ? issueKind : 'publico';
     const newTicket = makeDemoTicket(event.id, tier.id, holder.trim(), email.trim(), authorizedKind, promoter, authorizedKind === 'cortesia' ? 0 : tier.price);
-    addTicket(newTicket); setGenerated(newTicket); setHolder(''); setEmail('');
+    addTicket(newTicket);
+    setGenerated({ id: newTicket.id, holder: newTicket.holder, email: newTicket.email });
+    setHolder(''); setEmail('');
   }
 
   return <section className="page-content">
     <div className="page-heading"><div><div className="section-eyebrow">EQUIPO MCF <span className="eyebrow-line"/></div>
-      <h1>Panel de <span>públicos.</span></h1><p>Generá entradas únicamente para los eventos que tenés habilitados.</p></div>
+      <h1>Panel de <span>públicos.</span></h1><p>Registrá entradas para tus eventos. La entrega de QR será directa al correo del titular.</p></div>
       <Pill tone="purple"><UsersRound size={14}/> {user?.role === 'admin' ? 'Administrador' : 'RR. PP.'}</Pill></div>
-    <div className="demo-note"><CircleAlert size={17}/><span>Simulación local: los usuarios y permisos todavía no están protegidos por Supabase.</span></div>
+    <div className="demo-note"><CircleAlert size={17}/><span>Simulación local: no se envían correos reales. Los QR no se muestran a los RR. PP. y el bloqueo definitivo debe implementarse en Supabase.</span></div>
     <div className="public-assignment"><ShieldCheck size={19}/><span><strong>{promoter}</strong> · {allowedEvents.length} evento{allowedEvents.length !== 1 ? 's' : ''} habilitado{allowedEvents.length !== 1 ? 's' : ''} para emitir entradas.</span></div>
     <div className="public-stats">
       <div className="small-stat"><span>Mis entradas emitidas</span><strong>{issued.length}</strong><TicketIcon size={22}/></div>
@@ -273,7 +300,7 @@ function PublicPage({ store, user, addTicket }: { store: Store; user: StaffMembe
       <h2>No tenés eventos habilitados</h2><p>El administrador debe autorizarte para una fiesta desde Usuarios y permisos. No podés generar entradas por ahora.</p></div>}
     {allowedEvents.length > 0 && <div className="public-layout">
       <form className="panel public-form" onSubmit={generate}><div className="panel-title"><div><h2><UserRoundPlus size={21}/> Nueva entrada</h2>
-        <p>El QR queda registrado a nombre de {promoter}.</p></div></div>
+        <p>Registrada por {promoter}. El envío real del QR al cliente se activará con el servidor de correo.</p></div></div>
         <div className="form-stack">
           <label>Usuario emisor<input value={promoter} disabled aria-label="Usuario emisor"/></label>
           <label>Evento<select value={event?.id ?? ''} onChange={e=>changeEvent(e.target.value)}>
@@ -287,24 +314,27 @@ function PublicPage({ store, user, addTicket }: { store: Store; user: StaffMembe
             {canInvite && <label className={issueKind==='cortesia'?'issue-selected':''}><input type="radio" checked={issueKind==='cortesia'} onChange={()=>setKind('cortesia')}/>
               <Sparkles size={20}/><strong>Invitación / cortesía</strong><small>Sin cargo</small></label>}</div>
           {!canInvite && <div className="public-invite-restriction"><LockKeyhole size={15}/> Las invitaciones sin cargo están reservadas al administrador. Solo él puede habilitarte este permiso para el evento.</div>}
-          <Button type="submit" className="full-width" disabled={!tier}><QrCode size={18}/> Generar entrada de prueba</Button>
+          <div className="public-email-policy"><Mail size={18}/><span>Esta pantalla no ofrece visualizar, descargar, copiar ni reenviar el QR. La entrega final será a <strong>la dirección del cliente</strong>; falta protegerlo también desde el servidor.</span></div>
+          <Button type="submit" className="full-width" disabled={!tier}><Mail size={18}/> Registrar entrada para envío</Button>
         </div>
       </form>
       <section className="panel how-panel"><span className="how-icon"><ShieldCheck size={25}/></span><h2>Una entrada.<br/>Un código único.</h2>
         <p>Cada QR se vincula con un evento, sector, titular y usuario emisor.</p>
         <div className="how-steps"><div><span>01</span>Elegí evento autorizado <Check size={16}/></div>
-          <div><span>02</span>Registrá los datos <Check size={16}/></div><div><span>03</span>Generá el código QR <Check size={16}/></div></div>
+          <div><span>02</span>Registrá los datos <Check size={16}/></div><div><span>03</span>Solicitá el envío por correo <Check size={16}/></div></div>
         <div className="how-warning"><CircleAlert size={16}/> En producción, las cortesías tendrán cupos y autorización del administrador.</div>
       </section>
     </div>}
     <section className="panel recent-panel"><div className="panel-title"><div><h2>Mis emisiones recientes</h2>
       <p>Entradas registradas por {promoter} para los eventos autorizados</p></div><Pill tone="purple">{issued.length} entradas</Pill></div>
-      <div className="table-scroll"><table className="data-table"><thead><tr><th>TITULAR</th><th>EVENTO</th><th>TIPO</th><th>ESTADO</th></tr></thead>
+      <div className="table-scroll"><table className="data-table"><thead><tr><th>TITULAR</th><th>EVENTO</th><th>TIPO</th><th>ESTADO</th><th>CORREO</th></tr></thead>
         <tbody>{issued.slice().reverse().slice(0,8).map(t=><tr key={t.id}><td><strong>{t.holder}</strong><small className="table-secondary">{t.email}</small></td>
           <td>{store.events.find(e=>e.id===t.eventId)?.title}</td><td>{t.source==='cortesia'?'Cortesía':'Venta'}</td>
-          <td><Pill tone={t.status==='valid'?'green':'neutral'}>{t.status==='valid'?'Válida':t.status==='used'?'Utilizada':'Anulada'}</Pill></td></tr>)}</tbody>
+          <td><Pill tone={t.status==='valid'?'green':'neutral'}>{t.status==='valid'?'Válida':t.status==='used'?'Utilizada':'Anulada'}</Pill></td>
+          <td><Pill tone={t.deliveryStatus === 'sent' ? 'green' : t.deliveryStatus === 'failed' ? 'red' : 'yellow'}>
+            {t.deliveryStatus === 'sent' ? 'Enviado' : t.deliveryStatus === 'failed' ? 'Error' : t.deliveryStatus === 'queued' ? 'Pendiente' : 'No enviado'}</Pill></td></tr>)}</tbody>
       </table></div></section>
-    {generated && event && canSellEvent(user,event.id) && <TicketDialog ticket={generated} event={event} onClose={()=>setGenerated(null)}/>}
+    {generated && event && canSellEvent(user,event.id) && <EmailReceiptDialog receipt={generated} event={event} source="publico" onClose={()=>setGenerated(null)}/>}
   </section>;
 }
 

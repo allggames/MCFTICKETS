@@ -3,12 +3,14 @@
 Primera versión de una ticketera multi-evento para Argentina. Incluye cinco módulos:
 
 - **Administrador**: crear y editar eventos; cada lote tiene un nombre y al menos un sector, con precio y cupo independientes; agregar sectores extra es opcional y está disponible tanto al crear el evento como al crear/editar lotes; apertura y cierre de ventas exclusivamente manuales (con confirmación e historial); ampliar entradas de un sector en cualquier momento con historial del ajuste; reportes por evento/lote/sector; búsqueda de emisiones por titular o público y acceso al QR de prueba.
-- **Tienda pública**: catálogo de eventos, sectores y formulario de comprador.
-- **Públicos / RR. PP.**: registro de ventas informadas, limitado a los eventos asignados a ese usuario. Las invitaciones/cortesías sin cargo están reservadas al administrador salvo autorización adicional individual para un evento. El emisor se toma del perfil activo.
+- **Tienda pública**: catálogo de eventos, sectores y formulario de comprador; muestra un comprobante sin QR. El QR se enviará por correo cuando exista backend real.
+- **Públicos / RR. PP.**: registro de ventas informadas limitado a eventos autorizados, sin ver, copiar ni descargar el QR en la interfaz. Solo se muestran titular, correo destino, tipo y estado de entrega; el emisor se toma del perfil activo. Las invitaciones/cortesías sin cargo están reservadas al administrador salvo autorización adicional individual para un evento.
 - **Lector QR**: lectura con cámara y validación de tickets únicos.
 - **Usuarios y permisos**: dos roles fijos (administrador y RR. PP.), asignaciones de venta por evento individuales o masivas y permiso separado de emisión de invitaciones/cortesías. El administrador puede conceder o retirar este permiso por RR. PP. y evento; inicia siempre desactivado. También incluye búsqueda, suspensión, prueba de perfiles y rutas restringidas. La configuración del personal del lector QR se hará más adelante.
 
 > **Estado actual: prototipo interactivo (modo demo).** La interfaz utiliza datos de ejemplo y `localStorage`. No procesa pagos reales, no envía correos, no autentica operadores y **no** sirve para validar entradas reales. **El selector de perfiles y el bloqueo visual de rutas NO son controles de seguridad:** cualquier visitante puede elegir un perfil de prueba. No usar información real ni invitar operadores hasta conectar Supabase Auth y aplicar autorización del lado del servidor. La estructura inicial de Supabase está aplicada al proyecto MCF, pero el frontend todavía no consume esos datos.
+
+La emisión de una entrada por RR. PP. y la compra simulada muestran ahora **solo el comprobante y el estado "Correo no enviado"**, sin QR ni token en pantalla. **Esto es una restricción visual de la demo, no una garantía de confidencialidad:** los tickets de prueba siguen en `localStorage` del navegador. Solo un backend con token secreto no entregado a los RR. PP. puede garantizar esta regla.
 
 ## Ejecutarlo
 
@@ -85,9 +87,13 @@ Arquitectura prevista:
 Comprador → checkout propio → Edge Function crea preferencia Mercado Pago
           → Mercado Pago confirma pago por Webhook firmado
           → servidor consulta pago y verifica monto/evento
-          → se emite ticket único y se envía por correo
+          → el servidor emite un token único y envía el QR por correo al titular
           → lector autenticado valida token contra Supabase
 ```
+
+**Flujo para RR. PP. e invitaciones:** el público autorizado registra el evento, sector, titular y correo. El backend valida su rol y asignación al evento, crea la entrada y envía el QR **directamente al correo del titular**, sin incluir el token ni la imagen QR en la respuesta de la API al RR. PP. El público solo recibe una referencia, correo destino y estado (`pendiente`, `enviado`, `error`). El administrador puede consultar el QR y reintentar entregas fallidas. El token no debe estar en el almacenamiento local del RR. PP. ni en respuestas accesibles mediante RLS.
+
+**Pendiente para activar el correo real:** seleccionar y configurar un proveedor (p. ej., Resend), verificar el dominio emisor y guardar sus credenciales en secretos de Supabase Edge Functions. El envío se ejecutará solo en el servidor, con autorización e idempotencia para no crear tickets duplicados al reintentar. Para venta online deberá verificarse previamente la confirmación de pago de Mercado Pago.
 
 Las credenciales privadas (`MP_ACCESS_TOKEN`, firma de webhook y credencial de correo) deben configurarse como secretos de Edge Functions. El navegador solo recibirá una clave publicable. **No emitir entradas válidas a partir del retorno del comprador**, sino únicamente tras confirmar el pago desde el servidor.
 
@@ -104,6 +110,8 @@ Las credenciales privadas (`MP_ACCESS_TOKEN`, firma de webhook y credencial de c
 
 - [x] Compilación de React/TypeScript/Vite.
 - [x] Demo de creación de eventos, compra simulada, emisión manual y QR.
+- [x] Comprobantes sin QR para compradores y RR. PP., correos destino y estado explícito "No enviado". El QR sigue visible solo en el panel administrativo de demostración.
+- [ ] Envío real por email y autorización servidor para impedir acceso de RR. PP. al token o imagen QR.
 - [x] Demo de lotes, sectores, precios, cupos e informes desglosados en el administrador.
 - [x] Creación de eventos y lotes con un sector inicial personalizable y sectores adicionales opcionales, cada uno con su precio y cupo.
 - [x] Demo de ampliación de entradas por sector/lote e historial; no altera los QR previamente emitidos.

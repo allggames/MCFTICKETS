@@ -59,6 +59,7 @@ export type Ticket = {
   promoter: string;
   price: number;
   paymentStatus: 'approved' | 'reported' | 'complimentary' | 'refunded';
+  deliveryStatus?: 'not_configured' | 'queued' | 'sent' | 'failed';
   status: 'valid' | 'used' | 'void';
   createdAt: string;
   usedAt?: string;
@@ -122,6 +123,7 @@ const sampleTicket = (index: number, eventId: string, tierId: string, source: Ti
   promoter: source === 'online' ? '' : source === 'cortesia' ? 'Administración MCF' : index % 2 === 0 ? 'Martina López' : 'Nicolás Duarte',
   price,
   paymentStatus: source === 'online' ? 'approved' : source === 'cortesia' ? 'complimentary' : 'reported',
+  deliveryStatus: 'not_configured',
   status: used ? 'used' : 'valid',
   createdAt: new Date(Date.now() - index * 3_600_000).toISOString(),
   usedAt: used ? new Date(Date.now() - 90 * 60_000).toISOString() : undefined,
@@ -174,7 +176,8 @@ export function loadStore(): Store {
               tiers: event.tiers.map(tier => ({ ...tier, batchId })) };
           }),
           tickets: parsed.tickets.map(ticket => ({ ...ticket, paymentStatus: ticket.paymentStatus ??
-            (ticket.source === 'online' ? 'approved' : ticket.source === 'cortesia' ? 'complimentary' : 'reported') })),
+            (ticket.source === 'online' ? 'approved' : ticket.source === 'cortesia' ? 'complimentary' : 'reported'),
+            deliveryStatus: ticket.deliveryStatus ?? 'not_configured' })),
         };
       }
     }
@@ -201,6 +204,7 @@ export const makeDemoTicket = (
     id, token: `MCF:DEMO:${crypto.randomUUID()}`, eventId, tierId,
     holder, email, source, promoter, price, status: 'valid',
     paymentStatus: source === 'online' ? 'approved' : source === 'cortesia' ? 'complimentary' : 'reported',
+    deliveryStatus: 'not_configured',
     createdAt: new Date().toISOString(),
   };
 };
