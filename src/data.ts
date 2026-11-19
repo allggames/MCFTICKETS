@@ -1,13 +1,14 @@
 export type Batch = { id: string; name: string; status: 'draft' | 'active' | 'closed' };
-export type StaffRole = 'admin' | 'promoter' | 'scanner';
-export type StaffSection = 'publicos' | 'scanner';
+export type StaffRole = 'admin' | 'promoter';
 export type StaffMember = {
   id: string;
   name: string;
   email: string;
   role: StaffRole;
   active: boolean;
-  sections: StaffSection[];
+  // Lista de eventos habilitados expresamente para este RR. PP.
+  // Un admin tiene acceso global, independiente de esta lista.
+  allowedEventIds: string[];
 };
 export type BatchStatusChange = {
   id: string;
@@ -64,10 +65,9 @@ export type Store = { events: EventItem[]; tickets: Ticket[]; staff?: StaffMembe
 // Personas ficticias para probar el menú antes de conectar Supabase Auth.
 // Estos perfiles NO representan credenciales ni controles de seguridad reales.
 export const demoStaff: StaffMember[] = [
-  { id: 'demo-admin', name: 'Administración MCF', email: 'admin@ejemplo.com', role: 'admin', active: true, sections: ['publicos', 'scanner'] },
-  { id: 'demo-rrpp-1', name: 'Martina López', email: 'martina@ejemplo.com', role: 'promoter', active: true, sections: ['publicos'] },
-  { id: 'demo-rrpp-2', name: 'Nicolás Duarte', email: 'nicolas@ejemplo.com', role: 'promoter', active: true, sections: ['publicos'] },
-  { id: 'demo-scanner', name: 'Personal de puerta', email: 'puerta@ejemplo.com', role: 'scanner', active: true, sections: ['scanner'] },
+  { id: 'demo-admin', name: 'Administración MCF', email: 'admin@ejemplo.com', role: 'admin', active: true, allowedEventIds: [] },
+  { id: 'demo-rrpp-1', name: 'Martina López', email: 'martina@ejemplo.com', role: 'promoter', active: true, allowedEventIds: ['neon-night'] },
+  { id: 'demo-rrpp-2', name: 'Nicolás Duarte', email: 'nicolas@ejemplo.com', role: 'promoter', active: true, allowedEventIds: ['sunset'] },
 ];
 
 export const demoEvents: EventItem[] = [
@@ -147,7 +147,20 @@ export function loadStore(): Store {
       const parsed = JSON.parse(saved) as Store;
       if (Array.isArray(parsed.events) && Array.isArray(parsed.tickets)) {
         return {
-          staff: Array.isArray(parsed.staff) ? parsed.staff : demoStaff,
+          staff: Array.isArray(parsed.staff) ? parsed.staff
+            .filter(member => member && member.id !== 'demo-scanner')
+            .map(member => {
+              const example = demoStaff.find(demo => demo.id === member.id);
+              const isAdmin = member.role === 'admin';
+              return {
+                id: member.id, name: member.name, email: member.email,
+                role: (isAdmin ? 'admin' : 'promoter') as StaffRole,
+                active: String(member.role) === 'scanner' ? false : Boolean(member.active),
+                allowedEventIds: Array.isArray(member.allowedEventIds)
+                  ? member.allowedEventIds.filter((id): id is string => typeof id === 'string')
+                  : example?.allowedEventIds ?? [],
+              };
+            }) : demoStaff,
           events: parsed.events.map(event => {
             if (Array.isArray(event.batches) && event.tiers.every(tier => tier.batchId)) return event;
             const batchId = `legacy-${event.id}`;

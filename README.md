@@ -4,9 +4,9 @@ Primera versión de una ticketera multi-evento para Argentina. Incluye cinco mó
 
 - **Administrador**: crear y editar eventos; cada lote tiene un nombre y al menos un sector, con precio y cupo independientes; agregar sectores extra es opcional y está disponible tanto al crear el evento como al crear/editar lotes; apertura y cierre de ventas exclusivamente manuales (con confirmación e historial); ampliar entradas de un sector en cualquier momento con historial del ajuste; reportes por evento/lote/sector; búsqueda de emisiones por titular o público y acceso al QR de prueba.
 - **Tienda pública**: catálogo de eventos, sectores y formulario de comprador.
-- **Públicos / RR. PP.**: registro de ventas informadas y entradas de cortesía.
+- **Públicos / RR. PP.**: registro de ventas informadas y entradas de cortesía, limitado a los eventos asignados a ese usuario. El emisor se toma del perfil activo.
 - **Lector QR**: lectura con cámara y validación de tickets únicos.
-- **Usuarios y permisos**: panel demo para preparar usuarios, asignar roles y permitir o bloquear módulos. Incluye una vista de prueba de cada perfil y una pantalla de acceso restringido al abrir rutas no autorizadas.
+- **Usuarios y permisos**: dos roles fijos (administrador y RR. PP.), asignaciones por evento individuales o masivas, búsqueda, habilitación/suspensión de cuentas, prueba de perfiles y rutas restringidas. La configuración del personal del lector QR se hará más adelante.
 
 > **Estado actual: prototipo interactivo (modo demo).** La interfaz utiliza datos de ejemplo y `localStorage`. No procesa pagos reales, no envía correos, no autentica operadores y **no** sirve para validar entradas reales. **El selector de perfiles y el bloqueo visual de rutas NO son controles de seguridad:** cualquier visitante puede elegir un perfil de prueba. No usar información real ni invitar operadores hasta conectar Supabase Auth y aplicar autorización del lado del servidor. La estructura inicial de Supabase está aplicada al proyecto MCF, pero el frontend todavía no consume esos datos.
 
@@ -42,17 +42,17 @@ La navegación usa fragmentos de URL, lo que permite servir el frontend desde Gi
 ### Permisos de prueba
 
 - **Administrador**: ve todos los módulos, incluida la gestión de usuarios y la tienda.
-- **RR. PP.**: por defecto solo ve el panel de públicos.
-- **Personal de puerta**: por defecto solo ve el lector QR.
+- **RR. PP.**: solo ve el panel de públicos y, dentro de él, exclusivamente los eventos publicados que le hayan asignado. Si no tiene eventos, no puede emitir entradas.
 - **Visitante**: solo ve la tienda pública.
-- El administrador puede preparar personas pendientes, activar/suspender perfiles, modificar las áreas habilitadas y usar «Probar acceso» para comprobar la navegación. Estas acciones se guardan únicamente en el navegador.
+- El administrador puede preparar personas pendientes, activar/suspender perfiles y habilitar/deshabilitar RR. PP. **por evento**. Es posible buscar y aplicar permisos en bloque (con confirmación), por ejemplo habilitar 10 RR. PP. para un evento y 50 para otro. Se guarda únicamente en el navegador.
+- El lector QR continúa como prototipo, accesible desde la vista de administrador, pero la gestión de usuarios de puerta y sus permisos se desarrollará por separado.
 - Para que esto sea **real y seguro** faltan: autenticación de cada usuario; alta/aprobación desde el servidor; permisos de módulo guardados con RLS; verificación de rol y evento en cada RPC/Edge Function; e invitaciones por correo. El cambio de permisos de módulo en Supabase no está aplicado todavía.
 
 ## Modelo de datos propuesto
 
 La migración está en `supabase/migrations/`. Contiene:
 
-- `profiles`: usuarios internos y roles (`admin`, `promoter`, `scanner`).
+- `profiles`: estructura de usuarios internos y roles (`admin`, `promoter`, `scanner`); el último queda reservado para la futura etapa del lector QR.
 - `events`: eventos con estados borrador, publicado y cerrado.
 - `ticket_batches`: lotes de cada evento (en espera, activo o cerrado). Solo el administrador abre/cierra ventas; no se habilita automáticamente el siguiente lote ni siquiera cuando se agota el actual. El esquema permite como máximo uno activo por evento.
 - `ticket_batch_status_audit`: historial de aperturas y cierres de lote, autor, estado anterior/nuevo y fecha.
@@ -107,7 +107,7 @@ Las credenciales privadas (`MP_ACCESS_TOKEN`, firma de webhook y credencial de c
 - [x] Creación de eventos y lotes con un sector inicial personalizable y sectores adicionales opcionales, cada uno con su precio y cupo.
 - [x] Demo de ampliación de entradas por sector/lote e historial; no altera los QR previamente emitidos.
 - [x] Demo de apertura y cierre manual de lotes, confirmación, historial y ausencia de cambios automáticos cuando se agota el cupo.
-- [x] Demo de usuarios, roles y permisos con bloqueo visual por ruta, selector de perfiles y altas pendientes.
+- [x] Demo de roles fijos administrador/RR. PP., usuarios pendientes, asignación por evento y cambios masivos, con bloqueo visual por ruta y selector de perfiles.
 - [ ] Permisos reales en Supabase, vinculación con Auth, invitaciones y comprobación de roles/eventos en el servidor.
 - [x] Demo del lector QR con cámara (sujeto a permisos HTTPS) o código manual.
 - [ ] Pruebas en Supabase conectado con diferentes roles.

@@ -14,7 +14,7 @@ import {
   type EventItem, type StaffMember, type Store, type Ticket,
 } from './data';
 import { AdminEventManager } from './admin-management';
-import { canAccessPage, PermissionsPage, staffRoleLabel, type WorkspacePage } from './permissions';
+import { canAccessPage, canSellEvent, PermissionsPage, staffRoleLabel, type WorkspacePage } from './permissions';
 import './styles.css';
 
 type Page = WorkspacePage;
@@ -231,31 +231,76 @@ function ShopPage({ store, addTicket }: { store: Store; addTicket: (ticket: Tick
     {ticket && event && <TicketDialog ticket={ticket} event={event} onClose={() => setTicket(null)}/>}</section>;
 }
 
-function PublicPage({ store, addTicket }: { store: Store; addTicket: (ticket: Ticket) => void }) {
-  const [eventId, setEventId] = useState(store.events.find(e => e.status === 'published')?.id ?? '');
-  const event = store.events.find(e => e.id === eventId);
+function PublicPage({ store, user, addTicket }: { store: Store; user: StaffMember | null; addTicket: (ticket: Ticket) => void }) {
+  const [eventId, setEventId] = useState('');
+  const allowedEvents = store.events.filter(e => e.status === 'published' && canSellEvent(user, e.id));
+  const event = allowedEvents.find(e => e.id === eventId) ?? allowedEvents[0];
   const activeTiers = event ? sellableTiers(event) : [];
-  const [tierId, setTierId] = useState(activeTiers[0]?.id ?? '');
+  const [tierId, setTierId] = useState('');
   const [kind, setKind] = useState<'publico' | 'cortesia'>('publico');
   const [holder, setHolder] = useState('');
   const [email, setEmail] = useState('');
-  const [promoter, setPromoter] = useState('Martina López');
+  // La autoría de las entradas proviene del perfil activo, no de un desplegable editable.
+  const promoter = user?.name ?? '';
   const [generated, setGenerated] = useState<Ticket | null>(null);
-  const tier = activeTiers.find(t => t.id === tierId);
-  const issued = store.tickets.filter(t => t.promoter === promoter);
-  function changeEvent(id: string) { setEventId(id); const next = store.events.find(e => e.id === id); setTierId(next ? sellableTiers(next)[0]?.id ?? '' : ''); }
+  const tier = activeTiers.find(t => t.id === tierId) ?? activeTiers[0];
+  const issued = store.tickets.filter(t => t.promoter === promoter && canSellEvent(user, t.eventId));
+  function changeEvent(id: string) { setEventId(id); setTierId(''); setGenerated(null); }
   function generate(e: React.FormEvent) {
     e.preventDefault();
-    if (!event || !tier || !holder.trim() || !email.includes('@')) return;
+    if (!event || !tier || !canSellEvent(user, event.id) || !holder.trim() || !email.includes('@')) return;
     if (store.tickets.filter(t => t.tierId === tier.id && t.status !== 'void').length >= tier.capacity) return;
     const newTicket = makeDemoTicket(event.id, tier.id, holder.trim(), email.trim(), kind, promoter, kind === 'cortesia' ? 0 : tier.price);
     addTicket(newTicket); setGenerated(newTicket); setHolder(''); setEmail('');
   }
 
-  return <section className="page-content"><div className="page-heading"><div><div className="section-eyebrow">EQUIPO MCF <span className="eyebrow-line"/></div><h1>Panel de <span>públicos.</span></h1><p>Generá entradas, registrá ventas y consultá tus emisiones.</p></div><Pill tone="purple"><UsersRound size={14}/> Acceso de RR. PP.</Pill></div><div className="demo-note"><CircleAlert size={17}/><span>Modo demostración: todos los nombres de públicos son ficticios y todavía no hay usuarios con permisos reales.</span></div><div className="public-stats"><div className="small-stat"><span>Mis entradas emitidas</span><strong>{issued.length}</strong><TicketIcon size={22}/></div><div className="small-stat"><span>Ventas registradas</span><strong>{formatMoney(issued.reduce((n,t)=>n+t.price,0))}</strong><Wallet size={22}/></div><div className="small-stat"><span>Cortesías generadas</span><strong>{issued.filter(t=>t.source==='cortesia').length}</strong><Sparkles size={22}/></div></div>
-    <div className="public-layout"><form className="panel public-form" onSubmit={generate}><div className="panel-title"><div><h2><UserRoundPlus size={21}/> Nueva entrada</h2><p>Completá los datos para generar un QR de prueba.</p></div></div><div className="form-stack"><label>Usuario público<select value={promoter} onChange={e=>setPromoter(e.target.value)}><option>Martina López</option><option>Nicolás Duarte</option></select></label><label>Evento<select value={eventId} onChange={e=>changeEvent(e.target.value)}>{store.events.filter(e=>e.status==='published').map(e=><option key={e.id} value={e.id}>{e.title}</option>)}</select></label><label>Sector del lote activo<select value={tierId} onChange={e=>setTierId(e.target.value)}>{activeTiers.map(t=><option key={t.id} value={t.id}>{t.name} — {formatMoney(t.price)}</option>)}</select></label><div className="form-two"><label>Nombre y apellido<input required value={holder} onChange={e=>setHolder(e.target.value)} placeholder="Nombre del cliente"/></label><label>Email del cliente<input required type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="cliente@correo.com"/></label></div><div className="issue-types"><label className={kind==='publico'?'issue-selected':''}><input type="radio" checked={kind==='publico'} onChange={()=>setKind('publico')}/><CreditCard size={20}/><strong>Venta registrada</strong><small>{formatMoney(tier?.price??0)}</small></label><label className={kind==='cortesia'?'issue-selected':''}><input type="radio" checked={kind==='cortesia'} onChange={()=>setKind('cortesia')}/><Sparkles size={20}/><strong>Cortesía</strong><small>Sin cargo</small></label></div><Button type="submit" className="full-width" disabled={!tier}><QrCode size={18}/> Generar entrada de prueba</Button></div></form><section className="panel how-panel"><span className="how-icon"><ShieldCheck size={25}/></span><h2>Una entrada.<br/>Un código único.</h2><p>Cada QR se vincula con un evento, sector y titular. El lector registra su primer uso y rechaza los duplicados.</p><div className="how-steps"><div><span>01</span>Elegí evento y sector <Check size={16}/></div><div><span>02</span>Registrá los datos <Check size={16}/></div><div><span>03</span>Generá el código QR <Check size={16}/></div></div><div className="how-warning"><CircleAlert size={16}/> En producción, las cortesías tendrán cupos y autorización del administrador.</div></section></div>
-    <section className="panel recent-panel"><div className="panel-title"><div><h2>Emisiones recientes</h2><p>Entradas registradas por {promoter}</p></div><Pill tone="purple">{issued.length} entradas</Pill></div><div className="table-scroll"><table className="data-table"><thead><tr><th>TITULAR</th><th>EVENTO</th><th>TIPO</th><th>ESTADO</th></tr></thead><tbody>{issued.slice().reverse().slice(0,8).map(t=><tr key={t.id}><td><strong>{t.holder}</strong><small className="table-secondary">{t.email}</small></td><td>{store.events.find(e=>e.id===t.eventId)?.title}</td><td>{t.source==='cortesia'?'Cortesía':'Venta'}</td><td><Pill tone={t.status==='valid'?'green':'neutral'}>{t.status==='valid'?'Válida':t.status==='used'?'Utilizada':'Anulada'}</Pill></td></tr>)}</tbody></table></div></section>
-    {generated && event && <TicketDialog ticket={generated} event={event} onClose={()=>setGenerated(null)}/>}</section>;
+  return <section className="page-content">
+    <div className="page-heading"><div><div className="section-eyebrow">EQUIPO MCF <span className="eyebrow-line"/></div>
+      <h1>Panel de <span>públicos.</span></h1><p>Generá entradas únicamente para los eventos que tenés habilitados.</p></div>
+      <Pill tone="purple"><UsersRound size={14}/> {user?.role === 'admin' ? 'Administrador' : 'RR. PP.'}</Pill></div>
+    <div className="demo-note"><CircleAlert size={17}/><span>Simulación local: los usuarios y permisos todavía no están protegidos por Supabase.</span></div>
+    <div className="public-assignment"><ShieldCheck size={19}/><span><strong>{promoter}</strong> · {allowedEvents.length} evento{allowedEvents.length !== 1 ? 's' : ''} habilitado{allowedEvents.length !== 1 ? 's' : ''} para emitir entradas.</span></div>
+    <div className="public-stats">
+      <div className="small-stat"><span>Mis entradas emitidas</span><strong>{issued.length}</strong><TicketIcon size={22}/></div>
+      <div className="small-stat"><span>Ventas registradas</span><strong>{formatMoney(issued.filter(t => t.source === 'publico').reduce((n,t)=>n+t.price,0))}</strong><Wallet size={22}/></div>
+      <div className="small-stat"><span>Cortesías generadas</span><strong>{issued.filter(t=>t.source==='cortesia').length}</strong><Sparkles size={22}/></div>
+    </div>
+    {!allowedEvents.length && <div className="public-no-events"><LockKeyhole size={30}/>
+      <h2>No tenés eventos habilitados</h2><p>El administrador debe autorizarte para una fiesta desde Usuarios y permisos. No podés generar entradas por ahora.</p></div>}
+    {allowedEvents.length > 0 && <div className="public-layout">
+      <form className="panel public-form" onSubmit={generate}><div className="panel-title"><div><h2><UserRoundPlus size={21}/> Nueva entrada</h2>
+        <p>El QR queda registrado a nombre de {promoter}.</p></div></div>
+        <div className="form-stack">
+          <label>Usuario emisor<input value={promoter} disabled aria-label="Usuario emisor"/></label>
+          <label>Evento<select value={event?.id ?? ''} onChange={e=>changeEvent(e.target.value)}>
+            {allowedEvents.map(e=><option key={e.id} value={e.id}>{e.title}</option>)}</select></label>
+          <label>Sector del lote activo<select value={tier?.id ?? ''} onChange={e=>setTierId(e.target.value)}>
+            {activeTiers.map(t=><option key={t.id} value={t.id}>{t.name} — {formatMoney(t.price)}</option>)}</select></label>
+          <div className="form-two"><label>Nombre y apellido<input required value={holder} onChange={e=>setHolder(e.target.value)} placeholder="Nombre del cliente"/></label>
+            <label>Email del cliente<input required type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="cliente@correo.com"/></label></div>
+          <div className="issue-types"><label className={kind==='publico'?'issue-selected':''}><input type="radio" checked={kind==='publico'} onChange={()=>setKind('publico')}/>
+            <CreditCard size={20}/><strong>Venta registrada</strong><small>{formatMoney(tier?.price??0)}</small></label>
+            <label className={kind==='cortesia'?'issue-selected':''}><input type="radio" checked={kind==='cortesia'} onChange={()=>setKind('cortesia')}/>
+              <Sparkles size={20}/><strong>Cortesía</strong><small>Sin cargo</small></label></div>
+          <Button type="submit" className="full-width" disabled={!tier}><QrCode size={18}/> Generar entrada de prueba</Button>
+        </div>
+      </form>
+      <section className="panel how-panel"><span className="how-icon"><ShieldCheck size={25}/></span><h2>Una entrada.<br/>Un código único.</h2>
+        <p>Cada QR se vincula con un evento, sector, titular y usuario emisor.</p>
+        <div className="how-steps"><div><span>01</span>Elegí evento autorizado <Check size={16}/></div>
+          <div><span>02</span>Registrá los datos <Check size={16}/></div><div><span>03</span>Generá el código QR <Check size={16}/></div></div>
+        <div className="how-warning"><CircleAlert size={16}/> En producción, las cortesías tendrán cupos y autorización del administrador.</div>
+      </section>
+    </div>}
+    <section className="panel recent-panel"><div className="panel-title"><div><h2>Mis emisiones recientes</h2>
+      <p>Entradas registradas por {promoter} para los eventos autorizados</p></div><Pill tone="purple">{issued.length} entradas</Pill></div>
+      <div className="table-scroll"><table className="data-table"><thead><tr><th>TITULAR</th><th>EVENTO</th><th>TIPO</th><th>ESTADO</th></tr></thead>
+        <tbody>{issued.slice().reverse().slice(0,8).map(t=><tr key={t.id}><td><strong>{t.holder}</strong><small className="table-secondary">{t.email}</small></td>
+          <td>{store.events.find(e=>e.id===t.eventId)?.title}</td><td>{t.source==='cortesia'?'Cortesía':'Venta'}</td>
+          <td><Pill tone={t.status==='valid'?'green':'neutral'}>{t.status==='valid'?'Válida':t.status==='used'?'Utilizada':'Anulada'}</Pill></td></tr>)}</tbody>
+      </table></div></section>
+    {generated && event && canSellEvent(user,event.id) && <TicketDialog ticket={generated} event={event} onClose={()=>setGenerated(null)}/>}
+  </section>;
 }
 
 type ScanResult = { status: 'valid' | 'used' | 'invalid' | 'wrong-event'; ticket?: Ticket; event?: EventItem };
@@ -338,9 +383,9 @@ function App() {
   const pageNode = {
     admin:<AdminPage store={store} updateStore={setStore}/>,
     eventos:<ShopPage store={store} addTicket={addTicket}/>,
-    publicos:<PublicPage store={store} addTicket={addTicket}/>,
+    publicos:<PublicPage key={currentUser?.id ?? 'guest'} store={store} user={currentUser} addTicket={addTicket}/>,
     scanner:<ScannerPage store={store} redeem={redeem}/>,
-    permisos:<PermissionsPage staff={staff} onChange={next => setStore(current => ({...current,staff:next}))} onPreview={previewProfile}/>,
+    permisos:<PermissionsPage staff={staff} events={store.events} onChange={next => setStore(current => ({...current,staff:next}))} onPreview={previewProfile}/>,
   };
   const allowed = canAccessPage(currentUser,page);
   const firstAllowed = menu.find(item => canAccessPage(currentUser,item.id));
