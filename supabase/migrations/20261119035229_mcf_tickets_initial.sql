@@ -75,7 +75,8 @@ create table public.tickets (
   status text not null default 'valid' check (status in ('valid','used','void')),
   issued_at timestamptz not null default now(),
   checked_in_at timestamptz,
-  checked_in_by uuid references public.profiles(id)
+  checked_in_by uuid references public.profiles(id),
+  foreign key (ticket_type_id, event_id) references public.ticket_types(id, event_id)
 );
 
 create table public.ticket_audit (
@@ -109,6 +110,8 @@ language sql stable security definer set search_path = '' as $$
   );
 $$;
 
+revoke all on function private.is_admin(uuid) from public;
+revoke all on function private.is_event_staff(uuid,uuid) from public;
 grant execute on function private.is_admin(uuid) to anon, authenticated;
 grant execute on function private.is_event_staff(uuid,uuid) to anon, authenticated;
 
