@@ -18,6 +18,8 @@ import './styles.css';
 
 type Page = 'admin' | 'eventos' | 'publicos' | 'scanner';
 type IconComponent = typeof TicketIcon;
+type NewEventSector = { id: string; name: string; price: string; capacity: string };
+const firstEventSector = (): NewEventSector => ({ id: makeId(), name: 'General', price: '15000', capacity: '300' });
 
 function getPage(): Page {
   const slug = window.location.hash.replace(/^#\/?/, '').split('/')[0];
@@ -103,8 +105,8 @@ function AdminPage({ store, updateStore }: { store: Store; updateStore: (next: S
   const [newVenue, setNewVenue] = useState('');
   const [newCity, setNewCity] = useState('Posadas, Misiones');
   const [newBatchName, setNewBatchName] = useState('Lote 1');
-  const [newPrice, setNewPrice] = useState('15000');
-  const [newCapacity, setNewCapacity] = useState('300');
+  const [newSectors, setNewSectors] = useState<NewEventSector[]>([firstEventSector()]);
+  const [newSectorError, setNewSectorError] = useState('');
   const [selectedEventId, setSelectedEventId] = useState(store.events[0]?.id ?? '');
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [q, setQ] = useState('');
@@ -118,17 +120,26 @@ function AdminPage({ store, updateStore }: { store: Store; updateStore: (next: S
 
   function createEvent(e: React.FormEvent) {
     e.preventDefault();
-    if (!newName.trim() || !newVenue.trim() || !newBatchName.trim() || !newDate || !newTime ||
-      !Number.isFinite(Number(newPrice)) || Number(newPrice) < 0 || !Number.isInteger(Number(newCapacity)) || Number(newCapacity) < 1) return;
+    if (!newName.trim() || !newVenue.trim() || !newBatchName.trim() || !newDate || !newTime) return;
+    const names = newSectors.map(sector => sector.name.trim().toLowerCase());
+    if (!newSectors.length || names.some(name => !name) || new Set(names).size !== names.length ||
+      newSectors.some(sector => sector.price.trim() === '' || sector.capacity.trim() === '' ||
+        !Number.isSafeInteger(Number(sector.price)) || Number(sector.price) < 0 ||
+        !Number.isSafeInteger(Number(sector.capacity)) || Number(sector.capacity) < 1)) {
+      setNewSectorError('Revisá los sectores: cada nombre debe ser único, con precio válido y cupo entero mayor a cero.');
+      return;
+    }
     const id = makeId();
     const batchId = makeId();
     updateStore({ ...store, events: [...store.events, { id, title: newName.trim().toUpperCase(), subtitle: 'Nuevo evento', date: newDate,
       time: newTime, venue: newVenue.trim(), city: newCity.trim() || 'Posadas, Misiones', status: 'draft', accent: '#a58cff',
       batches: [{ id: batchId, name: newBatchName.trim(), status: 'draft' }],
-      tiers: [{ id: makeId(), batchId, name: 'General', price: Math.round(Number(newPrice)), capacity: Number(newCapacity) }],
+      tiers: newSectors.map(sector => ({ id: makeId(), batchId, name: sector.name.trim(),
+        price: Number(sector.price), capacity: Number(sector.capacity) })),
     }] });
     setSelectedEventId(id);
     setShowCreate(false); setNewName(''); setNewVenue(''); setNewBatchName('Lote 1');
+    setNewSectors([firstEventSector()]); setNewSectorError('');
   }
   function toggleEvent(id: string) {
     updateStore({ ...store, events: store.events.map(event => event.id === id ? {
@@ -150,7 +161,7 @@ function AdminPage({ store, updateStore }: { store: Store; updateStore: (next: S
       onViewTicket={setSelectedTicket}/>}
     <div className="bottom-hint"><Fingerprint size={17}/><span>La versión final incluirá roles, permisos, auditoría y confirmación de pagos por Mercado Pago.</span></div>
     {showCreate && <div className="modal-layer" onMouseDown={e => { if (e.target === e.currentTarget) setShowCreate(false); }}>
-      <form className="modal-card adm-create-event" onSubmit={createEvent}><div className="modal-header"><div><h2>Crear nuevo evento</h2><p>Definí fecha, lugar y el primer lote. Después podrás sumar más sectores.</p></div>
+      <form className="modal-card adm-create-event" onSubmit={createEvent}><div className="modal-header"><div><h2>Crear nuevo evento</h2><p>Definí fecha, lugar y el primer lote con los sectores que quieras.</p></div>
         <button type="button" className="icon-button" onClick={() => setShowCreate(false)}><X size={20}/></button></div>
         <div className="form-stack"><label>Nombre del evento<input required maxLength={80} placeholder="Ej. CLUB DEL FUNK" value={newName} onChange={e => setNewName(e.target.value)}/></label>
           <div className="form-two"><label>Fecha<input type="date" required value={newDate} onChange={e => setNewDate(e.target.value)}/></label>
@@ -159,9 +170,16 @@ function AdminPage({ store, updateStore }: { store: Store; updateStore: (next: S
             <label>Ciudad<input value={newCity} onChange={e => setNewCity(e.target.value)}/></label></div>
           <div className="adm-modal-divider">PRIMER LOTE</div>
           <label>Nombre del lote<input required value={newBatchName} onChange={e => setNewBatchName(e.target.value)} placeholder="Lote 1 / Earlys"/></label>
-          <div className="form-two"><label>Precio General ($)<input type="number" required min="0" step="1" value={newPrice} onChange={e => setNewPrice(e.target.value)}/></label>
-            <label>Cupo General<input type="number" required min="1" step="1" value={newCapacity} onChange={e => setNewCapacity(e.target.value)}/></label></div>
-          <p className="adm-helper">El evento y su primer lote quedan en espera. Para empezar a vender, publicá el evento y abrí el lote manualmente desde el administrador. Después podrás sumar sectores VIP, Ultra u otros.</p>
+          <div className="adm-sector-heading"><strong>Sectores del primer lote · {newSectors.length}</strong>
+            <button type="button" className="adm-link-button" onClick={() => { setNewSectors(rows => [...rows, { id: makeId(), name: '', price: '', capacity: '100' }]); setNewSectorError(''); }}><Plus size={15}/> Agregar otro sector</button></div>
+          <div className="adm-sector-list">{newSectors.map((sector, i) => <div className="adm-sector-row" key={sector.id}>
+            <label>Sector {i + 1}<input required maxLength={60} placeholder="General / VIP / Ultra" value={sector.name} onChange={e => setNewSectors(rows => rows.map(row => row.id === sector.id ? { ...row, name: e.target.value } : row))}/></label>
+            <label>Precio ($)<input type="number" required min="0" step="1" placeholder="15000" value={sector.price} onChange={e => setNewSectors(rows => rows.map(row => row.id === sector.id ? { ...row, price: e.target.value } : row))}/></label>
+            <label>Cupo<input type="number" required min="1" step="1" value={sector.capacity} onChange={e => setNewSectors(rows => rows.map(row => row.id === sector.id ? { ...row, capacity: e.target.value } : row))}/></label>
+            <button type="button" className="adm-remove-sector" disabled={newSectors.length === 1} aria-label={`Quitar sector ${i + 1}`} title="Quitar sector" onClick={() => setNewSectors(rows => rows.filter(row => row.id !== sector.id))}><X size={17}/></button>
+          </div>)}</div>
+          {newSectorError && <div className="form-error"><CircleAlert size={15}/>{newSectorError}</div>}
+          <p className="adm-helper">Solo necesitás un sector. Podés agregar más o modificarlos después. El evento y su lote quedan en espera hasta que decidas publicar y abrir las ventas.</p>
         </div><div className="modal-footer"><Button variant="secondary" onClick={() => setShowCreate(false)}>Cancelar</Button><Button type="submit"><Plus size={17}/> Crear borrador</Button></div>
       </form>
     </div>}

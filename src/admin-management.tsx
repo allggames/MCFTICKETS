@@ -89,7 +89,7 @@ export function AdminEventManager({ event, tickets, onChange, onViewTicket }: {
     setBatchName(edit?.name ?? `Lote ${event.batches.length + 1}`);
     setSectors(edit ? event.tiers.filter(t => t.batchId === edit.id).map(t => ({
       key: t.id, name: t.name, price: String(t.price), capacity: String(t.capacity),
-    })) : [blankSector(), blankSector('VIP')]);
+    })) : [blankSector()]);
     setShowBatchForm(true);
   }
 
@@ -288,14 +288,14 @@ export function AdminEventManager({ event, tickets, onChange, onViewTicket }: {
 
     {showBatchForm && <div className="modal-layer" onMouseDown={e => { if (e.target === e.currentTarget) setShowBatchForm(false); }}>
       <form className="modal-card adm-batch-modal" onSubmit={saveBatch}><div className="modal-header"><div><h2>{editingBatchId ? 'Editar lote' : 'Crear nuevo lote'}</h2>
-        <p>Definí los sectores, precios y cupos de este lote.</p></div><button type="button" className="icon-button" onClick={() => setShowBatchForm(false)}><X size={20}/></button></div>
+        <p>Definí el nombre del lote y al menos un sector. Los demás son opcionales.</p></div><button type="button" className="icon-button" onClick={() => setShowBatchForm(false)}><X size={20}/></button></div>
         <div className="form-stack"><label>Nombre del lote<input required maxLength={60} value={batchName} onChange={e => setBatchName(e.target.value)} placeholder="Ej. Earlys, Lote 1, Últimas 100"/></label></div>
-        <div className="adm-sector-heading"><strong>Sectores del lote</strong><button type="button" className="adm-link-button" onClick={() => setSectors(s => [...s, blankSector('')])}><Plus size={15}/> Agregar sector</button></div>
+        <div className="adm-sector-heading"><strong>Sectores del lote · {sectors.length}</strong><button type="button" className="adm-link-button" onClick={() => setSectors(s => [...s, blankSector('')])}><Plus size={15}/> Agregar otro sector</button></div>
         <div className="adm-sector-list">{sectors.map((sector, i) => <div className="adm-sector-row" key={sector.key}>
           <label>Sector {i + 1}<input required value={sector.name} placeholder="General / VIP / Ultra" onChange={e => setSectors(s => s.map(row => row.key === sector.key ? { ...row, name: e.target.value } : row))}/></label>
           <label>Precio ($)<input required type="number" min="0" step="1" value={sector.price} placeholder="15000" onChange={e => setSectors(s => s.map(row => row.key === sector.key ? { ...row, price: e.target.value } : row))}/></label>
           <label>Cupo<input required type="number" min="1" step="1" value={sector.capacity} onChange={e => setSectors(s => s.map(row => row.key === sector.key ? { ...row, capacity: e.target.value } : row))}/></label>
-          <button type="button" className="adm-remove-sector" title="Quitar sector" disabled={sectors.length === 1} onClick={() => setSectors(s => s.filter(row => row.key !== sector.key))}><X size={17}/></button>
+          <button type="button" className="adm-remove-sector" title={sectors.length === 1 ? 'Debe quedar al menos un sector' : `Quitar ${sector.name || 'sector'}`} aria-label={`Quitar sector ${i + 1}`} disabled={sectors.length === 1} onClick={() => setSectors(s => s.filter(row => row.key !== sector.key))}><X size={17}/></button>
         </div>)}</div>
         {formError && <div className="form-error"><CircleAlert size={15}/>{formError}</div>}
         <div className="adm-data-note"><TicketCheck size={16}/> Este lote se crea en espera: solo el administrador puede habilitarlo. Podés aumentar cupos, sumar sectores y modificar precios para futuras ventas. Los sectores con entradas emitidas no se pueden quitar ni renombrar.</div>

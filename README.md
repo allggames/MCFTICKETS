@@ -2,7 +2,7 @@
 
 Primera versión de una ticketera multi-evento para Argentina. Incluye cuatro módulos:
 
-- **Administrador**: crear y editar eventos; lotes con sectores, precios y cupos independientes; apertura y cierre de ventas exclusivamente manuales (con confirmación e historial); ampliar entradas de un sector en cualquier momento con historial del ajuste; reportes por evento/lote/sector; búsqueda de emisiones por titular o público y acceso al QR de prueba.
+- **Administrador**: crear y editar eventos; cada lote tiene un nombre y al menos un sector, con precio y cupo independientes; agregar sectores extra es opcional y está disponible tanto al crear el evento como al crear/editar lotes; apertura y cierre de ventas exclusivamente manuales (con confirmación e historial); ampliar entradas de un sector en cualquier momento con historial del ajuste; reportes por evento/lote/sector; búsqueda de emisiones por titular o público y acceso al QR de prueba.
 - **Tienda pública**: catálogo de eventos, sectores y formulario de comprador.
 - **Públicos / RR. PP.**: registro de ventas informadas y entradas de cortesía.
 - **Lector QR**: lectura con cámara y validación de tickets únicos.
@@ -93,6 +93,7 @@ Las credenciales privadas (`MP_ACCESS_TOKEN`, firma de webhook y credencial de c
 - [x] Compilación de React/TypeScript/Vite.
 - [x] Demo de creación de eventos, compra simulada, emisión manual y QR.
 - [x] Demo de lotes, sectores, precios, cupos e informes desglosados en el administrador.
+- [x] Creación de eventos y lotes con un sector inicial personalizable y sectores adicionales opcionales, cada uno con su precio y cupo.
 - [x] Demo de ampliación de entradas por sector/lote e historial; no altera los QR previamente emitidos.
 - [x] Demo de apertura y cierre manual de lotes, confirmación, historial y ausencia de cambios automáticos cuando se agota el cupo.
 - [x] Demo del lector QR con cámara (sujeto a permisos HTTPS) o código manual.
