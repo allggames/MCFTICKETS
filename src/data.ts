@@ -1,4 +1,14 @@
 export type Batch = { id: string; name: string; status: 'draft' | 'active' | 'closed' };
+export type StaffRole = 'admin' | 'promoter' | 'scanner';
+export type StaffSection = 'publicos' | 'scanner';
+export type StaffMember = {
+  id: string;
+  name: string;
+  email: string;
+  role: StaffRole;
+  active: boolean;
+  sections: StaffSection[];
+};
 export type BatchStatusChange = {
   id: string;
   batchId: string;
@@ -49,7 +59,16 @@ export type Ticket = {
   createdAt: string;
   usedAt?: string;
 };
-export type Store = { events: EventItem[]; tickets: Ticket[] };
+export type Store = { events: EventItem[]; tickets: Ticket[]; staff?: StaffMember[] };
+
+// Personas ficticias para probar el menú antes de conectar Supabase Auth.
+// Estos perfiles NO representan credenciales ni controles de seguridad reales.
+export const demoStaff: StaffMember[] = [
+  { id: 'demo-admin', name: 'Administración MCF', email: 'admin@ejemplo.com', role: 'admin', active: true, sections: ['publicos', 'scanner'] },
+  { id: 'demo-rrpp-1', name: 'Martina López', email: 'martina@ejemplo.com', role: 'promoter', active: true, sections: ['publicos'] },
+  { id: 'demo-rrpp-2', name: 'Nicolás Duarte', email: 'nicolas@ejemplo.com', role: 'promoter', active: true, sections: ['publicos'] },
+  { id: 'demo-scanner', name: 'Personal de puerta', email: 'puerta@ejemplo.com', role: 'scanner', active: true, sections: ['scanner'] },
+];
 
 export const demoEvents: EventItem[] = [
   {
@@ -114,7 +133,7 @@ const initialTickets: Ticket[] = Array.from({ length: 24 }, (_, i) => {
   return sampleTicket(i + 1, event.id, tier.id, isCourtesy ? 'cortesia' : isOnline ? 'online' : 'publico', isCourtesy ? 0 : tier.price, i % 4 === 0);
 });
 
-export const initialStore: Store = { events: demoEvents, tickets: initialTickets };
+export const initialStore: Store = { events: demoEvents, tickets: initialTickets, staff: demoStaff };
 
 export function sellableTiers(event: EventItem): Tier[] {
   const active = event.batches.find(batch => batch.status === 'active');
@@ -128,6 +147,7 @@ export function loadStore(): Store {
       const parsed = JSON.parse(saved) as Store;
       if (Array.isArray(parsed.events) && Array.isArray(parsed.tickets)) {
         return {
+          staff: Array.isArray(parsed.staff) ? parsed.staff : demoStaff,
           events: parsed.events.map(event => {
             if (Array.isArray(event.batches) && event.tiers.every(tier => tier.batchId)) return event;
             const batchId = `legacy-${event.id}`;

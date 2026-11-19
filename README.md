@@ -1,13 +1,14 @@
 # MCF TICKETS
 
-Primera versión de una ticketera multi-evento para Argentina. Incluye cuatro módulos:
+Primera versión de una ticketera multi-evento para Argentina. Incluye cinco módulos:
 
 - **Administrador**: crear y editar eventos; cada lote tiene un nombre y al menos un sector, con precio y cupo independientes; agregar sectores extra es opcional y está disponible tanto al crear el evento como al crear/editar lotes; apertura y cierre de ventas exclusivamente manuales (con confirmación e historial); ampliar entradas de un sector en cualquier momento con historial del ajuste; reportes por evento/lote/sector; búsqueda de emisiones por titular o público y acceso al QR de prueba.
 - **Tienda pública**: catálogo de eventos, sectores y formulario de comprador.
 - **Públicos / RR. PP.**: registro de ventas informadas y entradas de cortesía.
 - **Lector QR**: lectura con cámara y validación de tickets únicos.
+- **Usuarios y permisos**: panel demo para preparar usuarios, asignar roles y permitir o bloquear módulos. Incluye una vista de prueba de cada perfil y una pantalla de acceso restringido al abrir rutas no autorizadas.
 
-> **Estado actual: prototipo interactivo (modo demo).** La interfaz utiliza datos de ejemplo y `localStorage`. No procesa pagos reales, no envía correos, no autentica operadores y **no** sirve para validar entradas reales. La estructura inicial de Supabase está aplicada al proyecto MCF, pero el frontend todavía no consume esos datos.
+> **Estado actual: prototipo interactivo (modo demo).** La interfaz utiliza datos de ejemplo y `localStorage`. No procesa pagos reales, no envía correos, no autentica operadores y **no** sirve para validar entradas reales. **El selector de perfiles y el bloqueo visual de rutas NO son controles de seguridad:** cualquier visitante puede elegir un perfil de prueba. No usar información real ni invitar operadores hasta conectar Supabase Auth y aplicar autorización del lado del servidor. La estructura inicial de Supabase está aplicada al proyecto MCF, pero el frontend todavía no consume esos datos.
 
 ## Ejecutarlo
 
@@ -36,6 +37,16 @@ La navegación usa fragmentos de URL, lo que permite servir el frontend desde Gi
 | Venta online | `/app.html#/eventos` |
 | Públicos | `/app.html#/publicos` |
 | Lector | `/app.html#/scanner` |
+| Usuarios y permisos | `/app.html#/permisos` |
+
+### Permisos de prueba
+
+- **Administrador**: ve todos los módulos, incluida la gestión de usuarios y la tienda.
+- **RR. PP.**: por defecto solo ve el panel de públicos.
+- **Personal de puerta**: por defecto solo ve el lector QR.
+- **Visitante**: solo ve la tienda pública.
+- El administrador puede preparar personas pendientes, activar/suspender perfiles, modificar las áreas habilitadas y usar «Probar acceso» para comprobar la navegación. Estas acciones se guardan únicamente en el navegador.
+- Para que esto sea **real y seguro** faltan: autenticación de cada usuario; alta/aprobación desde el servidor; permisos de módulo guardados con RLS; verificación de rol y evento en cada RPC/Edge Function; e invitaciones por correo. El cambio de permisos de módulo en Supabase no está aplicado todavía.
 
 ## Modelo de datos propuesto
 
@@ -96,6 +107,8 @@ Las credenciales privadas (`MP_ACCESS_TOKEN`, firma de webhook y credencial de c
 - [x] Creación de eventos y lotes con un sector inicial personalizable y sectores adicionales opcionales, cada uno con su precio y cupo.
 - [x] Demo de ampliación de entradas por sector/lote e historial; no altera los QR previamente emitidos.
 - [x] Demo de apertura y cierre manual de lotes, confirmación, historial y ausencia de cambios automáticos cuando se agota el cupo.
+- [x] Demo de usuarios, roles y permisos con bloqueo visual por ruta, selector de perfiles y altas pendientes.
+- [ ] Permisos reales en Supabase, vinculación con Auth, invitaciones y comprobación de roles/eventos en el servidor.
 - [x] Demo del lector QR con cámara (sujeto a permisos HTTPS) o código manual.
 - [ ] Pruebas en Supabase conectado con diferentes roles.
 - [ ] Pruebas de compra Mercado Pago sandbox y webhook.

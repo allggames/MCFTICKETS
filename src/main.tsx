@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import QRCode from 'qrcode';
 import {
@@ -6,24 +6,25 @@ import {
   Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleAlert,
   Clock3, Copy, CreditCard, Download, Fingerprint, LayoutDashboard, LockKeyhole,
   Mail, Menu, MoreHorizontal, Plus, QrCode, Search, ShieldCheck, ShoppingBag,
-  Smartphone, Sparkles, Ticket as TicketIcon, TicketCheck, UserRoundPlus, UsersRound,
+  Smartphone, Sparkles, Ticket as TicketIcon, TicketCheck, UserRoundPlus, UsersRound, Settings2,
   Wallet, X, XCircle,
 } from 'lucide-react';
 import {
-  dateLabel, formatMoney, loadStore, makeDemoTicket, makeId, sellableTiers,
-  type EventItem, type Store, type Ticket,
+  dateLabel, demoStaff, formatMoney, loadStore, makeDemoTicket, makeId, sellableTiers,
+  type EventItem, type StaffMember, type Store, type Ticket,
 } from './data';
 import { AdminEventManager } from './admin-management';
+import { canAccessPage, PermissionsPage, staffRoleLabel, type WorkspacePage } from './permissions';
 import './styles.css';
 
-type Page = 'admin' | 'eventos' | 'publicos' | 'scanner';
+type Page = WorkspacePage;
 type IconComponent = typeof TicketIcon;
 type NewEventSector = { id: string; name: string; price: string; capacity: string };
 const firstEventSector = (): NewEventSector => ({ id: makeId(), name: 'General', price: '15000', capacity: '300' });
 
 function getPage(): Page {
   const slug = window.location.hash.replace(/^#\/?/, '').split('/')[0];
-  return slug === 'eventos' || slug === 'publicos' || slug === 'scanner' ? slug : 'admin';
+  return slug === 'eventos' || slug === 'publicos' || slug === 'scanner' || slug === 'permisos' ? slug : 'admin';
 }
 
 function Brand({ compact = false }: { compact?: boolean }) {
@@ -52,22 +53,30 @@ const menu: { id: Page; name: string; icon: IconComponent; detail: string }[] = 
   { id: 'eventos', name: 'Venta online', icon: ShoppingBag, detail: 'Tienda pública' },
   { id: 'publicos', name: 'Panel de públicos', icon: UsersRound, detail: 'Ventas y cortesías' },
   { id: 'scanner', name: 'Lector QR', icon: QrCode, detail: 'Control de acceso' },
+  { id: 'permisos', name: 'Usuarios y permisos', icon: Settings2, detail: 'Seguridad y equipo' },
 ];
 
-function Sidebar({ page, setPage, open, setOpen }: { page: Page; setPage: (p: Page) => void; open: boolean; setOpen: (v: boolean) => void }) {
+function Sidebar({ page, setPage, open, setOpen, user, staff, previewId, onPreview }: {
+  page: Page; setPage: (p: Page) => void; open: boolean; setOpen: (v: boolean) => void;
+  user: StaffMember | null; staff: StaffMember[]; previewId: string; onPreview: (id: string) => void;
+}) {
   return <>
     {open && <button className="sidebar-backdrop" aria-label="Cerrar menú" onClick={() => setOpen(false)}/>}
     <aside className={`sidebar ${open ? 'sidebar-open' : ''}`}>
       <div className="sidebar-top"><Brand/><button className="mobile-close" onClick={() => setOpen(false)} aria-label="Cerrar"><X size={20}/></button></div>
       <div className="sidebar-caption">WORKSPACE</div>
-      <nav aria-label="Secciones principales" className="main-nav">{menu.map(item => <a key={item.id} href={`#/${item.id}`} className={`nav-item ${page === item.id ? 'nav-active' : ''}`} onClick={() => { setPage(item.id); setOpen(false); }}>
+      <nav aria-label="Secciones principales" className="main-nav">{menu.filter(item => canAccessPage(user, item.id)).map(item => <a key={item.id} href={`#/${item.id}`} className={`nav-item ${page === item.id ? 'nav-active' : ''}`} onClick={() => { setPage(item.id); setOpen(false); }}>
         <item.icon size={19}/><span>{item.name}</span>{page === item.id && <span className="nav-rail"/>}
       </a>)}</nav>
       <div className="sidebar-caption bottom-caption">PLATAFORMA</div>
       <div className="side-info"><ShieldCheck size={17}/><div><strong>Proyecto MCF</strong><small>Versión de desarrollo</small></div></div>
       <div className="sidebar-spacer"/>
       <div className="sidebar-help"><div className="help-orb"><Sparkles size={20}/></div><strong>Todo en un mismo lugar.</strong><span>Creá eventos, gestioná ventas y validá ingresos.</span><span className="help-tag">MCF TICKETS · V1</span></div>
-      <div className="user-row"><div className="user-avatar">MC</div><div><strong>Mi espacio</strong><small>Administrador · Demo</small></div><MoreHorizontal size={17}/></div>
+      <div className="demo-profile-picker"><label htmlFor="demo-profile-select">PROBAR PERMISOS · DEMO</label>
+        <select id="demo-profile-select" aria-label="Elegir perfil de prueba" value={previewId} onChange={e => onPreview(e.target.value)}>
+          <option value="guest">Visitante sin cuenta</option>{staff.map(member => <option key={member.id} value={member.id}>{member.name} · {staffRoleLabel(member.role)}</option>)}
+        </select><small>Simulador de navegación. No es un inicio de sesión seguro.</small></div>
+      <div className="user-row"><div className="user-avatar">{user?.name.slice(0,2).toUpperCase() ?? 'MC'}</div><div><strong>{user?.name ?? 'Visitante'}</strong><small>{user ? staffRoleLabel(user.role) : 'Tienda pública'} · Demo</small></div><MoreHorizontal size={17}/></div>
     </aside>
   </>;
 }
@@ -297,8 +306,23 @@ function App() {
   const storeRef = useRef(store);
   const [page, setPage] = useState<Page>(getPage);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [previewId, setPreviewId] = useState(() => sessionStorage.getItem('mcf_demo_profile') || 'demo-admin');
+  const staff = store.staff ?? demoStaff;
+  const currentUser = previewId === 'guest' ? null : staff.find(member => member.id === previewId) ?? null;
   useEffect(()=>{storeRef.current=store;localStorage.setItem('mcf_tickets_demo_v1',JSON.stringify(store));},[store]);
   useEffect(()=>{const sync=()=>setPage(getPage());window.addEventListener('hashchange',sync);return()=>window.removeEventListener('hashchange',sync);},[]);
+  function previewProfile(id: string) {
+    setPreviewId(id);
+    sessionStorage.setItem('mcf_demo_profile', id);
+    const selected = id === 'guest' ? null : staff.find(member => member.id === id) ?? null;
+    if (!canAccessPage(selected, page)) {
+      const first = menu.find(item => canAccessPage(selected, item.id));
+      const destination = first?.id ?? 'eventos';
+      window.location.hash = `#/${destination}`;
+      setPage(destination);
+    }
+    setMobileOpen(false);
+  }
   const redeem=(token:string,eventId:string):ScanResult=>{
     const ticket=storeRef.current.tickets.find(t=>t.token===token);
     if(!ticket||ticket.status==='void')return {status:'invalid'};
@@ -311,13 +335,25 @@ function App() {
     return {status:'valid',ticket:next,event};
   };
   const addTicket=(ticket:Ticket)=>{setStore(current=>({...current,tickets:[...current.tickets,ticket]}));};
-  const pageNode=useMemo(()=>({
+  const pageNode = {
     admin:<AdminPage store={store} updateStore={setStore}/>,
     eventos:<ShopPage store={store} addTicket={addTicket}/>,
     publicos:<PublicPage store={store} addTicket={addTicket}/>,
     scanner:<ScannerPage store={store} redeem={redeem}/>,
-  }),[store]);
-  return <div className="app-shell"><Sidebar page={page} setPage={setPage} open={mobileOpen} setOpen={setMobileOpen}/><div className="main-shell"><Topbar page={page} setOpen={setMobileOpen}/>{pageNode[page]}<footer className="app-footer"><span>© 2026 MCF TICKETS · Versión de desarrollo</span><span>Diseñado para experiencias inolvidables <Sparkles size={13}/></span></footer></div></div>;
+    permisos:<PermissionsPage staff={staff} onChange={next => setStore(current => ({...current,staff:next}))} onPreview={previewProfile}/>,
+  };
+  const allowed = canAccessPage(currentUser,page);
+  const firstAllowed = menu.find(item => canAccessPage(currentUser,item.id));
+  return <div className="app-shell"><Sidebar page={page} setPage={setPage} open={mobileOpen} setOpen={setMobileOpen}
+    user={currentUser} staff={staff} previewId={previewId} onPreview={previewProfile}/>
+    <div className="main-shell"><Topbar page={page} setOpen={setMobileOpen}/>
+      {allowed ? pageNode[page] : <section className="page-content access-denied"><div className="access-denied-card"><LockKeyhole size={43}/>
+        <h1>Acceso restringido</h1><p>{currentUser?.active === false ? 'Este perfil todavía está pendiente de aprobación o fue suspendido.' :
+          `El perfil ${currentUser ? staffRoleLabel(currentUser.role) : 'visitante'} no tiene permiso para abrir esta sección de MCF TICKETS.`}</p>
+        <p className="access-denied-help">Aunque escribas el enlace directamente, la página no muestra el contenido de esa área. Esta prueba aún no sustituye la autenticación de Supabase.</p>
+        {firstAllowed && <button className="btn btn-primary" onClick={() => {window.location.hash=`#/${firstAllowed.id}`;setPage(firstAllowed.id);}}>Ir a {firstAllowed.name} <ArrowRight size={16}/></button>}
+      </div></section>}
+      <footer className="app-footer"><span>© 2026 MCF TICKETS · Versión de desarrollo</span><span>Diseñado para experiencias inolvidables <Sparkles size={13}/></span></footer></div></div>;
 }
 
 createRoot(document.getElementById('root')!).render(<App/>);

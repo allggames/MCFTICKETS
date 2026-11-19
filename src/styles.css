@@ -18,3 +18,32 @@
 @media(max-width:720px){.adm-capacity-history{padding:16px}.adm-capacity-change{grid-template-columns:1fr;gap:2px}.adm-capacity-preview{gap:6px}.adm-capacity-preview>div{padding:11px}.adm-capacity-preview strong{font-size:19px}}
 .adm-manual-status{display:flex;align-items:flex-start;gap:14px;background:linear-gradient(125deg,#26233f,#1d2034);border:1px solid #554978;border-radius:13px;padding:18px 20px}.adm-manual-icon{display:grid;place-items:center;flex-shrink:0;width:32px;height:32px;border-radius:9px;background:#4c3b7e;color:#d9c8ff}.adm-manual-status strong{font-size:13px;color:#ece3ff}.adm-manual-status p{margin:7px 0 0;font-size:11px;color:#acabc5;line-height:1.65}.adm-manual-status b{color:#d1bbff}.adm-manual-hint{margin:0 24px 16px;color:#bdabde;font-size:11px;line-height:1.5}.adm-batch-detail>.form-error{margin:0 24px 16px}.adm-inline-actions .btn:disabled{opacity:.42;cursor:not-allowed}.adm-batch-bottom{flex-wrap:wrap;align-items:baseline}
 .adm-manual-confirm{width:min(100%,490px)}.adm-manual-description{color:#aeafc5;font-size:13px;line-height:1.7;margin:23px 0 4px}.adm-manual-confirm .modal-footer{margin-top:23px}
+
+/* Panel de usuarios, permisos y vista previa de roles. */
+.demo-profile-picker{margin:0 12px 12px;padding:13px;border:1px solid #42395c;background:#29233b;border-radius:11px;display:flex;flex-direction:column;gap:8px}
+.demo-profile-picker label{color:#b5a2e8;font-size:9px;font-weight:800;letter-spacing:1px}
+.demo-profile-picker select{width:100%;min-width:0;background:#1e1c30;color:#e6ddff;padding:9px;border:1px solid #5c4a7e;border-radius:8px;font-size:11px}
+.demo-profile-picker small{font-size:9px;line-height:1.5;color:#aaa0c5}
+.permissions-warning{border:1px solid #866540;background:#372c2a;border-radius:12px;padding:16px 18px;display:flex;gap:12px;align-items:flex-start}
+.permissions-warning svg{color:#f5be71;flex-shrink:0}.permissions-warning strong{color:#f7d8a7;font-size:12px}
+.permissions-warning p{color:#d0bfae;font-size:11px;line-height:1.65;margin:5px 0 0}
+.permission-guide{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.permission-guide-item{background:#202034;border:1px solid #39364e;border-radius:13px;padding:22px;display:flex;flex-direction:column;align-items:flex-start;gap:11px}
+.permission-guide-item svg{color:#b9a0fc}.permission-guide-item strong{font:700 15px 'Space Grotesk',sans-serif;color:#eeeafb}
+.permission-guide-item span{font-size:11px;line-height:1.65;color:#a4a4bf}
+.permissions-panel{padding:0;overflow:hidden}.permissions-panel>.panel-title{padding:24px 22px;gap:14px}
+.permission-search{height:40px;max-width:250px;width:100%;background:#242438;color:#e6e1f4;border:1px solid #46435f;border-radius:9px;padding:0 12px;font-size:11px}
+.permissions-table-scroll{width:100%;overflow:auto}.permissions-table{min-width:860px}
+.permissions-table td{vertical-align:middle;font-size:11px}.permissions-table .table-secondary{max-width:230px;overflow:hidden;text-overflow:ellipsis}
+.permission-full-access{display:block;margin-top:6px;color:#b4a4e9;font-size:10px;font-weight:600}
+.permission-role{background:#29283c;border:1px solid #4b465e;color:#ded8f4;border-radius:8px;padding:10px 7px;max-width:160px;width:100%;font-size:11px}
+.permission-check{display:flex;align-items:center;gap:7px;font-size:10px;color:#aaaac4;white-space:nowrap;cursor:pointer}
+.permission-check input{accent-color:#9479ed;width:16px;height:16px}.permission-check input:disabled{opacity:.65}
+.permission-status{display:inline-flex;align-items:center;gap:6px;justify-content:center;border-radius:8px;cursor:pointer;padding:9px 11px;font-size:10px;font-weight:700;border:1px solid;white-space:nowrap}
+.permission-active{color:#b4eed5;border-color:#3e7a67;background:#1f3e37}.permission-pending{color:#e9c68d;border-color:#74593a;background:#3f332b}
+.permission-error{margin:0 20px 15px}.permission-modal{width:min(100%,520px)}.permission-modal .adm-helper{margin:14px 0 0}
+.permission-confirm-text{color:#a8a8c4;font-size:13px;line-height:1.7;margin:24px 0}.permission-modal .modal-footer{margin-top:22px}
+.access-denied{min-height:64vh;display:grid;place-items:center}.access-denied-card{width:min(100%,530px);padding:40px;text-align:center;background:#202035;border:1px solid #47405d;border-radius:17px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.access-denied-card>svg{color:#bea8ff}.access-denied-card h1{font:700 27px 'Space Grotesk',sans-serif;color:#efebfa;margin:0}
+.access-denied-card p{margin:0;color:#b7b5ca;font-size:13px;line-height:1.65}.access-denied-card .access-denied-help{font-size:11px;color:#888ca5}
+@media(max-width:850px){.permission-guide{grid-template-columns:1fr}.permission-guide-item{padding:15px}.permissions-panel>.panel-title{align-items:flex-start;flex-direction:column}.permission-search{max-width:none}}
