@@ -2,7 +2,7 @@
 
 Primera versión de una ticketera multi-evento para Argentina. Incluye cinco módulos:
 
-- **Administrador**: crear y editar eventos; cada lote tiene un nombre y al menos un sector, con precio y cupo independientes; agregar sectores extra es opcional y está disponible tanto al crear el evento como al crear/editar lotes; apertura y cierre de ventas exclusivamente manuales (con confirmación e historial); ampliar entradas de un sector en cualquier momento con historial del ajuste; reportes por evento/lote/sector; búsqueda de emisiones por titular o público y acceso al QR de prueba.
+- **Panel de eventos**: pestañas **Crear evento** y **Mis eventos** con historial completo, totales generales de tickets vendidos e ingresos brutos registrados. Crear evento incluye nombre, descripción opcional, fecha y hora, lugar, imagen, URL personalizable y tantos lotes/sectores como se necesiten, cada sector con precio y cupo propios. Cada lote se habilita manualmente. El administrador puede **forzar SOLD OUT en un lote individual** sin afectar los demás, aunque queden entradas; es definitivo y bloquea futuras modificaciones de cupo, precio y sectores de ese lote. **Cerrar evento** es una acción distinta, que detiene las ventas online y por RR. PP. de todos los lotes del evento, pero conserva historial y QR emitidos. Informes por evento/lote/sector y búsqueda de emisiones por titular o público, con acceso administrativo al QR de prueba.
 - **Tienda pública**: catálogo de eventos, sectores y formulario de comprador; muestra un comprobante sin QR. El QR se enviará por correo cuando exista backend real.
 - **Públicos / RR. PP.**: registro de ventas informadas limitado a eventos autorizados, sin ver, copiar ni descargar el QR en la interfaz. Solo se muestran titular, correo destino, tipo y estado de entrega; el emisor se toma del perfil activo. Las invitaciones/cortesías sin cargo están reservadas al administrador salvo autorización adicional individual para un evento.
 - **Lector QR**: lectura con cámara y validación de tickets únicos.
@@ -11,6 +11,8 @@ Primera versión de una ticketera multi-evento para Argentina. Incluye cinco mó
 > **Estado actual: prototipo interactivo (modo demo).** La interfaz utiliza datos de ejemplo y `localStorage`. No procesa pagos reales, no envía correos, no autentica operadores y **no** sirve para validar entradas reales. **El selector de perfiles y el bloqueo visual de rutas NO son controles de seguridad:** cualquier visitante puede elegir un perfil de prueba. No usar información real ni invitar operadores hasta conectar Supabase Auth y aplicar autorización del lado del servidor. La estructura inicial de Supabase está aplicada al proyecto MCF, pero el frontend todavía no consume esos datos.
 
 La emisión de una entrada por RR. PP. y la compra simulada muestran ahora **solo el comprobante y el estado "Correo no enviado"**, sin QR ni token en pantalla. **Esto es una restricción visual de la demo, no una garantía de confidencialidad:** los tickets de prueba siguen en `localStorage` del navegador. Solo un backend con token secreto no entregado a los RR. PP. puede garantizar esta regla.
+
+**Importante sobre enlaces e imágenes:** en la demo, las URL personalizadas de los eventos funcionan en el navegador que creó esos eventos. Como los datos e imágenes se guardan localmente y no en un servidor compartido, **otro comprador que abra ese enlace desde un dispositivo distinto no verá el evento creado**. Para publicar y vender realmente se requiere sincronización con Supabase (eventos, lotes y almacenamiento de imágenes). Los totales mostrados representan *ingresos brutos registrados* o simulados, **no ganancias netas ni dinero conciliado**.
 
 ## Ejecutarlo
 
@@ -35,7 +37,7 @@ La navegación usa fragmentos de URL, lo que permite servir el frontend desde Gi
 
 | Área | URL local |
 | --- | --- |
-| Administración | `/app.html#/admin` |
+| Panel de eventos | `/app.html#/admin` |
 | Venta online | `/app.html#/eventos` |
 | Públicos | `/app.html#/publicos` |
 | Lector | `/app.html#/scanner` |
@@ -57,7 +59,7 @@ La migración está en `supabase/migrations/`. Contiene:
 
 - `profiles`: estructura de usuarios internos y roles (`admin`, `promoter`, `scanner`); el último queda reservado para la futura etapa del lector QR.
 - `events`: eventos con estados borrador, publicado y cerrado.
-- `ticket_batches`: lotes de cada evento (en espera, activo o cerrado). Solo el administrador abre/cierra ventas; no se habilita automáticamente el siguiente lote ni siquiera cuando se agota el actual. El esquema permite como máximo uno activo por evento.
+- `ticket_batches`: lotes de cada evento (en espera, activo o cerrado en el esquema inicial). Solo el administrador abre/cierra ventas; no se habilita automáticamente el siguiente lote ni siquiera cuando se agota el actual. El esquema permite como máximo uno activo por evento. **El SOLD OUT definitivo por lote implementado en la interfaz todavía debe agregarse a las migraciones y a las reglas del servidor.**
 - `ticket_batch_status_audit`: historial de aperturas y cierres de lote, autor, estado anterior/nuevo y fecha.
 - `ticket_types`: sectores, precios en centavos de ARS y capacidad independiente dentro de cada lote, ajustable por el administrador.
 - `ticket_capacity_adjustments`: auditoría de cada cambio de cupo, con cantidad anterior/nueva, diferencia, motivo, autor y fecha.
@@ -116,6 +118,9 @@ Las credenciales privadas (`MP_ACCESS_TOKEN`, firma de webhook y credencial de c
 - [x] Creación de eventos y lotes con un sector inicial personalizable y sectores adicionales opcionales, cada uno con su precio y cupo.
 - [x] Demo de ampliación de entradas por sector/lote e historial; no altera los QR previamente emitidos.
 - [x] Demo de apertura y cierre manual de lotes, confirmación, historial y ausencia de cambios automáticos cuando se agota el cupo.
+- [x] Demo de SOLD OUT definitivo **por lote**, bloqueo de ampliaciones después de SOLD OUT y **cierre del evento completo** como operación separada.
+- [x] Panel de eventos con Crear evento, Mis eventos e historial; fecha, lugar, descripción, imagen y URL individual; resumen general e individual de tickets vendidos e ingresos registrados.
+- [ ] Persistir en Supabase los nuevos datos, publicar los eventos y sus imágenes entre dispositivos, y aplicar SOLD OUT/cierre global en el servidor.
 - [x] Demo de roles fijos administrador/RR. PP., usuarios pendientes, asignación por evento, cambios masivos y permiso de invitaciones por RR. PP./evento (desactivado por defecto), con bloqueo visual por ruta y selector de perfiles.
 - [ ] Permisos reales en Supabase, vinculación con Auth, invitaciones y comprobación de roles/eventos en el servidor.
 - [x] Demo del lector QR con cámara (sujeto a permisos HTTPS) o código manual.

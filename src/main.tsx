@@ -10,17 +10,16 @@ import {
   Wallet, X, XCircle,
 } from 'lucide-react';
 import {
-  dateLabel, demoStaff, formatMoney, loadStore, makeDemoTicket, makeId, sellableTiers,
+  dateLabel, demoStaff, eventPublicUrl, formatMoney, loadStore, makeDemoTicket, sellableTiers,
   type EventItem, type StaffMember, type Store, type Ticket,
 } from './data';
 import { AdminEventManager } from './admin-management';
+import { EventCreateForm } from './event-create';
 import { canAccessPage, canIssueInvitation, canSellEvent, PermissionsPage, staffRoleLabel, type WorkspacePage } from './permissions';
 import './styles.css';
 
 type Page = WorkspacePage;
 type IconComponent = typeof TicketIcon;
-type NewEventSector = { id: string; name: string; price: string; capacity: string };
-const firstEventSector = (): NewEventSector => ({ id: makeId(), name: 'General', price: '15000', capacity: '300' });
 
 function getPage(): Page {
   const slug = window.location.hash.replace(/^#\/?/, '').split('/')[0];
@@ -49,7 +48,7 @@ function Metric({ label, value, icon: Icon, annotation, color = 'purple' }: {
 }
 
 const menu: { id: Page; name: string; icon: IconComponent; detail: string }[] = [
-  { id: 'admin', name: 'Administrador', icon: LayoutDashboard, detail: 'Control general' },
+  { id: 'admin', name: 'Panel de eventos', icon: LayoutDashboard, detail: 'Control general' },
   { id: 'eventos', name: 'Venta online', icon: ShoppingBag, detail: 'Tienda pública' },
   { id: 'publicos', name: 'Panel de públicos', icon: UsersRound, detail: 'Ventas y cortesías' },
   { id: 'scanner', name: 'Lector QR', icon: QrCode, detail: 'Control de acceso' },
@@ -89,108 +88,105 @@ function Topbar({ page, setOpen }: { page: Page; setOpen: (v: boolean) => void }
 
 function EventArtwork({ event, compact = false }: { event: EventItem; compact?: boolean }) {
   return <div className={`event-art event-art-${event.id === 'neon-night' ? 'neon' : event.id === 'sunset' ? 'sunset' : 'midnight'} ${compact ? 'event-art-compact' : ''}`}>
+    {event.imageUrl && <img className="event-art-cover" src={event.imageUrl} alt=""/>}
     <span className="art-grid"/><span className="art-glow"/><span className="art-lines"/>
-    <div className="art-inner"><span className="art-eyebrow">MCF PRESENTA</span><strong>{event.title}</strong><small>{event.subtitle}</small></div>
+    <div className="art-inner"><span className="art-eyebrow">MCF PRESENTA</span><strong>{event.title}</strong><small>{event.description || event.subtitle}</small></div>
     <span className="art-corner">MCF / 2026—27</span>
   </div>;
 }
 
-function EventTable({ events, tickets, selectedId, onSelect, onToggle }: { events: EventItem[]; tickets: Ticket[]; selectedId: string; onSelect: (id: string) => void; onToggle: (id: string) => void }) {
-  return <div className="table-scroll"><table className="data-table"><thead><tr><th>EVENTO</th><th>FECHA</th><th>ENTRADAS</th><th>VENTAS INFORMADAS*</th><th>ESTADO</th><th/></tr></thead><tbody>
+function EventTable({ events, tickets, selectedId, onSelect, onPublish, onClose }: {
+  events: EventItem[]; tickets: Ticket[]; selectedId: string;
+  onSelect: (id: string) => void; onPublish: (id: string) => void; onClose: (id: string) => void;
+}) {
+  return <div className="table-scroll"><table className="data-table"><thead><tr><th>EVENTO</th><th>FECHA</th><th>TICKETS VENDIDOS</th><th>INGRESOS REGISTRADOS*</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody>
     {events.map(event => {
       const rows = tickets.filter(t => t.eventId === event.id);
-      const money = rows.filter(t => t.status !== 'void' && t.paymentStatus !== 'refunded').reduce((n, t) => n + t.price, 0);
+      const sales = rows.filter(t => t.status !== 'void' && t.source !== 'cortesia' && t.paymentStatus !== 'refunded');
+      const money = sales.reduce((n, t) => n + t.price, 0);
       return <tr key={event.id} className={selectedId === event.id ? 'adm-selected-event' : ''}><td><button className="adm-event-name" onClick={() => onSelect(event.id)}><div className="table-event"><span className="event-initial" style={{ background: event.accent }}>{event.title.substring(0, 1)}</span><span><strong>{event.title}</strong><small>{event.venue}</small></span></div></button></td>
-        <td>{dateLabel(event.date)}</td><td><strong>{rows.filter(t => t.status !== 'void').length}</strong><span className="subtle"> / {event.tiers.reduce((n, t) => n + t.capacity, 0)}</span></td><td className="money-cell">{formatMoney(money)}</td><td><Pill tone={event.status === 'published' ? 'green' : event.status === 'draft' ? 'yellow' : 'neutral'}>{event.status === 'published' ? 'Publicado' : event.status === 'draft' ? 'Borrador' : 'Cerrado'}</Pill></td><td><div className="adm-event-actions"><button className="adm-open-qr" onClick={() => onSelect(event.id)}>Gestionar</button><button className="table-action" onClick={() => onToggle(event.id)} title="Cambiar estado de publicación"><MoreHorizontal size={19}/></button></div></td></tr>;
+        <td>{dateLabel(event.date)}</td><td><strong>{sales.length}</strong><span className="subtle"> / {event.tiers.reduce((n, t) => n + t.capacity, 0)} cupos</span></td><td className="money-cell">{formatMoney(money)}</td><td><Pill tone={event.status === 'published' ? 'green' : event.status === 'draft' ? 'yellow' : 'neutral'}>{event.status === 'published' ? 'Publicado' : event.status === 'draft' ? 'Borrador' : 'Cerrado'}</Pill></td>
+        <td><div className="adm-event-actions"><button className="adm-open-qr" onClick={() => onSelect(event.id)}>Gestionar</button>
+          {event.status === 'draft' && <button className="adm-event-publish" onClick={() => onPublish(event.id)}>Publicar</button>}
+          {event.status === 'published' && <button className="adm-event-close" onClick={() => onClose(event.id)}>Cerrar evento</button>}
+          {event.status === 'closed' && <span className="adm-history-label">En historial</span>}
+          <button className="adm-event-copy" title="Copiar URL pública" aria-label={`Copiar URL de ${event.title}`} onClick={() => navigator.clipboard?.writeText(eventPublicUrl(event))}><Copy size={15}/></button>
+        </div></td></tr>;
     })}
   </tbody></table></div>;
 }
 
 function AdminPage({ store, updateStore }: { store: Store; updateStore: (next: Store) => void }) {
-  const [showCreate, setShowCreate] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newDate, setNewDate] = useState('2027-02-20');
-  const [newTime, setNewTime] = useState('23:00');
-  const [newVenue, setNewVenue] = useState('');
-  const [newCity, setNewCity] = useState('Posadas, Misiones');
-  const [newBatchName, setNewBatchName] = useState('Lote 1');
-  const [newSectors, setNewSectors] = useState<NewEventSector[]>([firstEventSector()]);
-  const [newSectorError, setNewSectorError] = useState('');
+  const [view, setView] = useState<'mine' | 'create'>('mine');
   const [selectedEventId, setSelectedEventId] = useState(store.events[0]?.id ?? '');
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [closeConfirmId, setCloseConfirmId] = useState<string | null>(null);
   const [q, setQ] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | EventItem['status']>('all');
   const revenue = store.tickets.filter(t => t.status !== 'void' && t.paymentStatus === 'approved').reduce((sum, ticket) => sum + ticket.price, 0);
   const reported = store.tickets.filter(t => t.status !== 'void' && t.paymentStatus === 'reported').reduce((sum, ticket) => sum + ticket.price, 0);
+  const soldTickets = store.tickets.filter(ticket => ticket.status !== 'void' && ticket.source !== 'cortesia' && ticket.paymentStatus !== 'refunded');
   const checked = store.tickets.filter(ticket => ticket.status === 'used').length;
   const selectedEvent = store.events.find(event => event.id === selectedEventId) ?? store.events[0];
-  const visibleEvents = store.events.filter(event => event.title.toLowerCase().includes(q.toLowerCase()));
+  const visibleEvents = store.events.filter(event => event.title.toLowerCase().includes(q.toLowerCase()) &&
+    (statusFilter === 'all' || event.status === statusFilter)).slice().sort((a, b) => b.date.localeCompare(a.date));
   const bySource = ['online', 'publico', 'cortesia'].map(source => ({ source, count: store.tickets.filter(ticket => ticket.source === source).length }));
   const maxSource = Math.max(1, ...bySource.map(source => source.count));
 
-  function createEvent(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newName.trim() || !newVenue.trim() || !newBatchName.trim() || !newDate || !newTime) return;
-    const names = newSectors.map(sector => sector.name.trim().toLowerCase());
-    if (!newSectors.length || names.some(name => !name) || new Set(names).size !== names.length ||
-      newSectors.some(sector => sector.price.trim() === '' || sector.capacity.trim() === '' ||
-        !Number.isSafeInteger(Number(sector.price)) || Number(sector.price) < 0 ||
-        !Number.isSafeInteger(Number(sector.capacity)) || Number(sector.capacity) < 1)) {
-      setNewSectorError('Revisá los sectores: cada nombre debe ser único, con precio válido y cupo entero mayor a cero.');
-      return;
-    }
-    const id = makeId();
-    const batchId = makeId();
-    updateStore({ ...store, events: [...store.events, { id, title: newName.trim().toUpperCase(), subtitle: 'Nuevo evento', date: newDate,
-      time: newTime, venue: newVenue.trim(), city: newCity.trim() || 'Posadas, Misiones', status: 'draft', accent: '#a58cff',
-      batches: [{ id: batchId, name: newBatchName.trim(), status: 'draft' }],
-      tiers: newSectors.map(sector => ({ id: makeId(), batchId, name: sector.name.trim(),
-        price: Number(sector.price), capacity: Number(sector.capacity) })),
-    }] });
-    setSelectedEventId(id);
-    setShowCreate(false); setNewName(''); setNewVenue(''); setNewBatchName('Lote 1');
-    setNewSectors([firstEventSector()]); setNewSectorError('');
+  function createEvent(event: EventItem) {
+    updateStore({ ...store, events: [...store.events, event] });
+    setSelectedEventId(event.id);
+    setStatusFilter('all');
+    setView('mine');
   }
-  function toggleEvent(id: string) {
-    updateStore({ ...store, events: store.events.map(event => event.id === id ? {
-      ...event, status: event.status === 'published' ? 'draft' : 'published',
-    } : event) });
+  function publishEvent(id: string) {
+    updateStore({ ...store, events: store.events.map(event => event.id === id && event.status === 'draft'
+      ? { ...event, status: 'published' as const } : event) });
+  }
+  function closeEvent(id: string) {
+    updateStore({ ...store, events: store.events.map(event => event.id === id && event.status === 'published'
+      ? { ...event, status: 'closed' as const } : event) });
+    setCloseConfirmId(null);
   }
 
   return <section className="page-content">
-    <div className="page-heading"><div><div className="section-eyebrow">PANEL GENERAL <span className="eyebrow-line"/></div><h1>Tu evento. <span>Todo bajo control.</span></h1><p>Resumen general de ventas, entradas y accesos de MCF TICKETS.</p></div><Button onClick={() => setShowCreate(true)}><Plus size={18}/> Nuevo evento</Button></div>
+    <div className="page-heading"><div><div className="section-eyebrow">GESTIÓN DE EVENTOS <span className="eyebrow-line"/></div>
+      <h1>Panel de <span>eventos.</span></h1><p>Creá eventos, organizá lotes y consultá tus ventas e historial.</p></div>
+      {view === 'mine' && <Button onClick={() => setView('create')}><Plus size={18}/> Crear evento</Button>}</div>
+    <div className="event-admin-tabs" role="tablist" aria-label="Panel de eventos">
+      <button role="tab" aria-selected={view === 'mine'} className={view === 'mine' ? 'event-admin-tab-active' : ''} onClick={() => setView('mine')}><CalendarDays size={17}/> Mis eventos <span>{store.events.length}</span></button>
+      <button role="tab" aria-selected={view === 'create'} className={view === 'create' ? 'event-admin-tab-active' : ''} onClick={() => setView('create')}><Plus size={17}/> Crear evento</button>
+    </div>
     <div className="demo-note"><CircleAlert size={17}/><span>Datos de demostración. Todavía no se cobran pagos ni se envían correos reales.</span></div>
-    <div className="metrics-grid"><Metric label="Online · simulado" value={formatMoney(revenue)} icon={Wallet} annotation="No representa cobros reales"/><Metric label="Ventas de públicos" value={formatMoney(reported)} icon={TicketIcon} annotation="Declaradas, sin conciliar" color="blue"/><Metric label="Accesos validados" value={String(checked)} icon={TicketCheck} annotation="QR utilizados" color="green"/><Metric label="Eventos publicados" value={String(store.events.filter(e => e.status === 'published').length)} icon={CalendarDays} annotation="Activos actualmente" color="orange"/></div>
+    {view === 'create' ? <EventCreateForm existing={store.events} onCreate={createEvent}/> : <>
+    <div className="metrics-grid"><Metric label="Eventos totales" value={String(store.events.length)} icon={CalendarDays} annotation={`${store.events.filter(e => e.status === 'closed').length} en historial cerrado`}/>
+      <Metric label="Tickets vendidos" value={String(soldTickets.length)} icon={TicketIcon} annotation="No incluye cortesías" color="blue"/>
+      <Metric label="Ingresos registrados*" value={formatMoney(revenue + reported)} icon={Wallet} annotation="Online simulados + públicos informados" color="green"/>
+      <Metric label="Eventos publicados" value={String(store.events.filter(e => e.status === 'published').length)} icon={TicketCheck} annotation="Disponibles para compradores" color="orange"/></div>
     <div className="dashboard-panels"><section className="panel revenue-panel"><div className="panel-title"><div><h2>Resumen de emisiones</h2><p>Origen de las entradas generadas</p></div><span className="tiny-pill">Todos los eventos <ChevronDown size={13}/></span></div>
       <div className="source-bars">{bySource.map(({ source, count }) => <div className="bar-row" key={source}><span>{source === 'online' ? 'Venta online' : source === 'publico' ? 'Públicos' : 'Cortesías'}</span><div className="bar-track"><div className={`bar-fill bar-${source}`} style={{ width: `${count / maxSource * 100}%` }}/></div><strong>{count}</strong></div>)}</div>
       <div className="panel-total"><span>Total de ventas registradas (demo)</span><strong>{formatMoney(revenue + reported)}</strong></div>
     </section><section className="panel insights-panel"><div className="panel-title"><div><h2>Estado de accesos</h2><p>Seguimiento de QR en tiempo real*</p></div><Activity size={21} color="#a88afd"/></div><div className="donut-row"><div className="donut" style={{ '--used': `${(checked / Math.max(1, store.tickets.length)) * 100}%` } as React.CSSProperties}><div><strong>{Math.round((checked / Math.max(1, store.tickets.length)) * 100)}%</strong><small>utilizados</small></div></div><div className="donut-legend"><span><i className="legend-purple"/>Por ingresar <strong>{store.tickets.filter(t => t.status === 'valid').length}</strong></span><span><i className="legend-green"/>Ingresaron <strong>{checked}</strong></span><span><i className="legend-muted"/>Anulados <strong>{store.tickets.filter(t => t.status === 'void').length}</strong></span></div></div><small className="insights-note">* En la demo, los cambios se guardan en este navegador.</small></section></div>
-    <section className="panel events-panel"><div className="panel-title table-title"><div><h2>Mis eventos</h2><p>Seleccioná uno para gestionar lotes, sectores y QR.</p></div><label className="search-box"><Search size={17}/><input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar evento" aria-label="Buscar evento"/></label></div><EventTable events={visibleEvents} tickets={store.tickets} selectedId={selectedEvent?.id ?? ''} onSelect={setSelectedEventId} onToggle={toggleEvent}/></section>
-    {selectedEvent && <AdminEventManager key={selectedEvent.id} event={selectedEvent} tickets={store.tickets}
+    <section className="panel events-panel"><div className="panel-title table-title"><div><h2>Mis eventos · Historial</h2><p>Incluye próximos eventos, borradores y fiestas cerradas. Seleccioná uno para ver sus lotes y números.</p></div>
+      <div className="event-history-filters"><label className="search-box"><Search size={17}/><input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar evento" aria-label="Buscar evento"/></label>
+      <select aria-label="Filtrar eventos por estado" value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}>
+        <option value="all">Todos los eventos</option><option value="published">Publicados</option><option value="draft">Borradores</option><option value="closed">Cerrados</option></select></div></div>
+      <EventTable events={visibleEvents} tickets={store.tickets} selectedId={selectedEvent?.id ?? ''}
+        onSelect={setSelectedEventId} onPublish={publishEvent} onClose={setCloseConfirmId}/></section>
+    {selectedEvent && <AdminEventManager key={selectedEvent.id} event={selectedEvent} existingEvents={store.events} tickets={store.tickets}
       onChange={next => updateStore({ ...store, events: store.events.map(e => e.id === next.id ? next : e) })}
       onViewTicket={setSelectedTicket}/>}
-    <div className="bottom-hint"><Fingerprint size={17}/><span>La versión final incluirá roles, permisos, auditoría y confirmación de pagos por Mercado Pago.</span></div>
-    {showCreate && <div className="modal-layer" onMouseDown={e => { if (e.target === e.currentTarget) setShowCreate(false); }}>
-      <form className="modal-card adm-create-event" onSubmit={createEvent}><div className="modal-header"><div><h2>Crear nuevo evento</h2><p>Definí fecha, lugar y el primer lote con los sectores que quieras.</p></div>
-        <button type="button" className="icon-button" onClick={() => setShowCreate(false)}><X size={20}/></button></div>
-        <div className="form-stack"><label>Nombre del evento<input required maxLength={80} placeholder="Ej. CLUB DEL FUNK" value={newName} onChange={e => setNewName(e.target.value)}/></label>
-          <div className="form-two"><label>Fecha<input type="date" required value={newDate} onChange={e => setNewDate(e.target.value)}/></label>
-            <label>Hora de inicio<input type="time" required value={newTime} onChange={e => setNewTime(e.target.value)}/></label></div>
-          <div className="form-two"><label>Lugar<input required placeholder="Nombre del lugar" value={newVenue} onChange={e => setNewVenue(e.target.value)}/></label>
-            <label>Ciudad<input value={newCity} onChange={e => setNewCity(e.target.value)}/></label></div>
-          <div className="adm-modal-divider">PRIMER LOTE</div>
-          <label>Nombre del lote<input required value={newBatchName} onChange={e => setNewBatchName(e.target.value)} placeholder="Lote 1 / Earlys"/></label>
-          <div className="adm-sector-heading"><strong>Sectores del primer lote · {newSectors.length}</strong>
-            <button type="button" className="adm-link-button" onClick={() => { setNewSectors(rows => [...rows, { id: makeId(), name: '', price: '', capacity: '100' }]); setNewSectorError(''); }}><Plus size={15}/> Agregar otro sector</button></div>
-          <div className="adm-sector-list">{newSectors.map((sector, i) => <div className="adm-sector-row" key={sector.id}>
-            <label>Sector {i + 1}<input required maxLength={60} placeholder="General / VIP / Ultra" value={sector.name} onChange={e => setNewSectors(rows => rows.map(row => row.id === sector.id ? { ...row, name: e.target.value } : row))}/></label>
-            <label>Precio ($)<input type="number" required min="0" step="1" placeholder="15000" value={sector.price} onChange={e => setNewSectors(rows => rows.map(row => row.id === sector.id ? { ...row, price: e.target.value } : row))}/></label>
-            <label>Cupo<input type="number" required min="1" step="1" value={sector.capacity} onChange={e => setNewSectors(rows => rows.map(row => row.id === sector.id ? { ...row, capacity: e.target.value } : row))}/></label>
-            <button type="button" className="adm-remove-sector" disabled={newSectors.length === 1} aria-label={`Quitar sector ${i + 1}`} title="Quitar sector" onClick={() => setNewSectors(rows => rows.filter(row => row.id !== sector.id))}><X size={17}/></button>
-          </div>)}</div>
-          {newSectorError && <div className="form-error"><CircleAlert size={15}/>{newSectorError}</div>}
-          <p className="adm-helper">Solo necesitás un sector. Podés agregar más o modificarlos después. El evento y su lote quedan en espera hasta que decidas publicar y abrir las ventas.</p>
-        </div><div className="modal-footer"><Button variant="secondary" onClick={() => setShowCreate(false)}>Cancelar</Button><Button type="submit"><Plus size={17}/> Crear borrador</Button></div>
-      </form>
+    <div className="bottom-hint"><Fingerprint size={17}/><span>* Ingresos brutos informados en modo demo. No son ganancias netas ni cobros comprobados; falta conciliar pagos y descuentos de Mercado Pago.</span></div>
+    </>}
+    {closeConfirmId && <div className="modal-layer" onMouseDown={e => { if (e.target === e.currentTarget) setCloseConfirmId(null); }}>
+      <div className="modal-card adm-manual-confirm" role="dialog" aria-modal="true" aria-labelledby="close-event-heading">
+        <div className="modal-header"><div><h2 id="close-event-heading">¿Cerrar todas las ventas de este evento?</h2>
+          <p>{store.events.find(event => event.id === closeConfirmId)?.title}</p></div>
+          <button className="icon-button" type="button" aria-label="Cerrar" onClick={() => setCloseConfirmId(null)}><X size={19}/></button></div>
+        <p className="adm-manual-description">Esta acción es diferente a marcar SOLD OUT un lote. Cerrará las ventas online y por RR. PP. de <strong>todos los lotes de este evento</strong>, sin afectar otras fiestas. Los QR ya emitidos conservarán su validez y el evento seguirá visible en tu historial.</p>
+        <div className="modal-footer"><button className="btn btn-secondary" onClick={() => setCloseConfirmId(null)}>Cancelar</button>
+          <button className="btn btn-soldout" onClick={() => closeEvent(closeConfirmId)}>Sí, cerrar evento</button></div>
+      </div>
     </div>}
     {selectedTicket && selectedEvent && <TicketDialog ticket={selectedTicket} event={selectedEvent} onClose={() => setSelectedTicket(null)}/>}
   </section>;
@@ -231,15 +227,29 @@ function EmailReceiptDialog({ receipt, event, source, onClose }: {
 
 function ShopPage({ store, addTicket }: { store: Store; addTicket: (ticket: Ticket) => void }) {
   const published = store.events.filter(event => event.status === 'published');
-  const [selected, setSelected] = useState<string | null>(null);
+  const fromHash = () => {
+    const slug = decodeURIComponent(window.location.hash.split('/')[2] ?? '');
+    return published.find(event => (event.slug || event.id) === slug)?.id ?? null;
+  };
+  const [selected, setSelected] = useState<string | null>(fromHash);
   const [tierId, setTierId] = useState('');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [ticket, setTicket] = useState<EmailReceipt | null>(null);
   const event = published.find(e => e.id === selected) ?? null;
   const availableTiers = event ? sellableTiers(event) : [];
-  const tier = availableTiers.find(t => t.id === tierId) ?? null;
-  function chooseEvent(id: string) { const e = published.find(item => item.id === id); setSelected(id); setTierId(e ? sellableTiers(e)[0]?.id ?? '' : ''); }
+  const tier = availableTiers.find(t => t.id === tierId) ?? availableTiers[0] ?? null;
+  useEffect(() => {
+    const sync = () => setSelected(fromHash());
+    window.addEventListener('hashchange', sync);
+    return () => window.removeEventListener('hashchange', sync);
+  }, [store.events]);
+  function chooseEvent(id: string) {
+    const e = published.find(item => item.id === id);
+    setSelected(id); setTierId(e ? sellableTiers(e)[0]?.id ?? '' : '');
+    if (e) window.location.hash = `#/eventos/${encodeURIComponent(e.slug || e.id)}`;
+  }
+  function backToEvents() { setSelected(null); setTicket(null); window.location.hash = '#/eventos'; }
   function placeOrder(e: React.FormEvent) {
     e.preventDefault();
     if (!event || !tier || !name.trim() || !email.includes('@')) return;
@@ -252,7 +262,7 @@ function ShopPage({ store, addTicket }: { store: Store; addTicket: (ticket: Tick
   return <section className="page-content"><div className="page-heading"><div><div className="section-eyebrow">MCF TICKETS <span className="eyebrow-line"/></div><h1>Viví el momento. <span>Elegí tu evento.</span></h1><p>Explorá los próximos eventos y elegí la entrada ideal.</p></div><Pill tone="purple"><Sparkles size={13}/> Compra online</Pill></div>
     <div className="demo-note"><CircleAlert size={17}/><span>Esta tienda es una demostración: no se cobra dinero y todavía no se envían entradas por email. El QR nunca se mostrará en el comprobante del comprador.</span></div>
     {!event ? <><div className="shop-feature"><div className="feature-copy"><Pill tone="purple">EXPERIENCIAS MCF</Pill><h2>Las mejores noches<br/><em>empiezan acá.</em></h2><p>Un lugar para todas tus experiencias. Elegí tu evento, tu sector y disfrutá.</p><div className="feature-stats"><span><strong>{published.length}</strong> EVENTOS DISPONIBLES</span><span><strong>100%</strong> DIGITAL</span></div></div><div className="feature-visual"><span className="feature-ring"/><TicketIcon size={112} strokeWidth={1} /></div></div><div className="section-row"><h2>Próximos eventos <span className="muted-count">{published.length}</span></h2><span className="subtle">Explorar todos</span></div><div className="event-card-grid">{published.map(item => <article className="shop-event-card" key={item.id}><EventArtwork event={item}/><div className="shop-event-body"><div className="event-card-meta"><CalendarDays size={14}/>{dateLabel(item.date)} <span>·</span> {item.time} hs</div><h3>{item.title}</h3><p>{item.venue} · {item.city}</p><div className="shop-event-bottom"><div><small>Desde</small><strong>{sellableTiers(item).length ? formatMoney(Math.min(...sellableTiers(item).map(t => t.price))) : 'Sin lote activo'}</strong></div><Button onClick={() => chooseEvent(item.id)}>Ver entradas <ArrowRight size={17}/></Button></div></div></article>)}</div></>
-      : <><button className="back-link" onClick={() => setSelected(null)}><ChevronLeft size={17}/> Volver a eventos</button><div className="checkout-grid"><div><EventArtwork event={event}/><div className="panel event-description"><h2>{event.title}</h2><p>{event.subtitle}</p><div className="detail-row"><CalendarDays size={18}/>{dateLabel(event.date)} · {event.time} hs</div><div className="detail-row"><Smartphone size={18}/>{event.venue}, {event.city}</div><div className="detail-row"><Mail size={18}/> En la versión final, recibís tu QR por email.</div></div></div><form className="panel checkout-form" onSubmit={placeOrder}><div className="panel-title"><div><h2>Elegí tu entrada</h2><p>Seleccioná un sector para continuar</p></div></div><div className="tier-list">{availableTiers.map(t => { const remaining = t.capacity - store.tickets.filter(ticket => ticket.tierId === t.id && ticket.status !== 'void').length; return <label className={`tier-option ${tierId === t.id ? 'tier-selected' : ''}`} key={t.id}><input type="radio" name="tier" value={t.id} checked={tierId === t.id} disabled={remaining <= 0} onChange={() => setTierId(t.id)}/><span className="radio-fake"/><span><strong>{t.name}</strong><small>{remaining} disponibles</small></span><b>{formatMoney(t.price)}</b></label>; })}</div>{!availableTiers.length && <p className="adm-helper">Todavía no hay un lote activo para este evento.</p>}<div className="divider"/><h3>Datos del titular</h3><div className="form-stack"><label>Nombre y apellido<input required value={name} onChange={e => setName(e.target.value)} placeholder="Nombre completo"/></label><label>Correo electrónico<input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="nombre@correo.com"/></label></div><div className="checkout-summary"><span>Total de prueba</span><strong>{formatMoney(tier?.price ?? 0)}</strong></div><Button type="submit" className="full-width" disabled={!tier}><CreditCard size={18}/> Simular compra</Button><p className="checkout-note"><LockKeyhole size={14}/> Mercado Pago se conectará para la versión real.</p></form></div></>}
+      : <><button className="back-link" onClick={backToEvents}><ChevronLeft size={17}/> Volver a eventos</button><div className="checkout-grid"><div><EventArtwork event={event}/><div className="panel event-description"><h2>{event.title}</h2><p>{event.description || event.subtitle}</p><div className="detail-row"><CalendarDays size={18}/>{dateLabel(event.date)} · {event.time} hs</div><div className="detail-row"><Smartphone size={18}/>{event.venue}, {event.city}</div><div className="detail-row"><Mail size={18}/> En la versión final, recibís tu QR por email.</div></div></div><form className="panel checkout-form" onSubmit={placeOrder}><div className="panel-title"><div><h2>Elegí tu entrada</h2><p>Seleccioná un sector para continuar</p></div></div><div className="tier-list">{availableTiers.map(t => { const remaining = t.capacity - store.tickets.filter(ticket => ticket.tierId === t.id && ticket.status !== 'void').length; return <label className={`tier-option ${tierId === t.id ? 'tier-selected' : ''}`} key={t.id}><input type="radio" name="tier" value={t.id} checked={tierId === t.id} disabled={remaining <= 0} onChange={() => setTierId(t.id)}/><span className="radio-fake"/><span><strong>{t.name}</strong><small>{remaining} disponibles</small></span><b>{t.price !== undefined ? formatMoney(t.price) : ''}</b></label>; })}</div>{!availableTiers.length && <p className="adm-helper">Todavía no hay un lote activo para este evento.</p>}<div className="divider"/><h3>Datos del titular</h3><div className="form-stack"><label>Nombre y apellido<input required value={name} onChange={e => setName(e.target.value)} placeholder="Nombre completo"/></label><label>Correo electrónico<input type="email" required value={email} onChange={e => setEmail(e.target.value)} placeholder="nombre@correo.com"/></label></div><div className="checkout-summary"><span>Total de prueba</span><strong>{formatMoney(tier?.price ?? 0)}</strong></div><Button type="submit" className="full-width" disabled={!tier}><CreditCard size={18}/> Simular compra</Button><p className="checkout-note"><LockKeyhole size={14}/> Mercado Pago se conectará para la versión real.</p></form></div></>}
     {ticket && event && <EmailReceiptDialog receipt={ticket} event={event} source="online" onClose={() => setTicket(null)}/>}</section>;
 }
 

@@ -1,4 +1,4 @@
-export type Batch = { id: string; name: string; status: 'draft' | 'active' | 'closed' };
+export type Batch = { id: string; name: string; status: 'draft' | 'active' | 'closed' | 'sold_out' };
 export type StaffRole = 'admin' | 'promoter';
 export type StaffMember = {
   id: string;
@@ -37,6 +37,9 @@ export type EventItem = {
   id: string;
   title: string;
   subtitle: string;
+  description?: string;
+  imageUrl?: string;
+  slug?: string;
   date: string;
   time: string;
   venue: string;
@@ -194,6 +197,20 @@ export const dateLabel = (date: string) => new Date(`${date}T12:00:00`).toLocale
 });
 
 export const makeId = () => crypto.randomUUID();
+
+export const slugifyEvent = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 70);
+
+export const eventPublicUrl = (event: EventItem): string =>
+  `https://allggames.github.io/MCFTICKETS/#/eventos/${encodeURIComponent(event.slug || event.id)}`;
+
+export function batchSoldOut(event: EventItem, batch: Batch, tickets: Ticket[]): boolean {
+  if (batch.status === 'sold_out') return true;
+  const tiers = event.tiers.filter(tier => tier.batchId === batch.id);
+  if (!tiers.length) return false;
+  return tiers.every(tier => tickets.filter(ticket => ticket.eventId === event.id &&
+    ticket.tierId === tier.id && ticket.status !== 'void').length >= tier.capacity);
+}
 
 export const makeDemoTicket = (
   eventId: string, tierId: string, holder: string, email: string,
