@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import type { User } from '@supabase/supabase-js';
 import QRCode from 'qrcode';
 import {
   Activity, ArrowRight, CalendarDays,
@@ -15,6 +16,9 @@ import {
 } from './data';
 import { AdminEventManager } from './admin-management';
 import { EventCreateForm } from './event-create';
+import { LiveAdministration } from './live-administration';
+import { SetPasswordPanel, SignInPanel } from './auth-panel';
+import { supabase } from './supabase';
 import { canAccessPage, canIssueInvitation, canSellEvent, PermissionsPage, staffRoleLabel, type WorkspacePage } from './permissions';
 import './styles.css';
 
@@ -55,9 +59,10 @@ const menu: { id: Page; name: string; icon: IconComponent; detail: string }[] = 
 ];
 const scannerMenu = { id: 'scanner' as const, name: 'Lector QR · demo', icon: QrCode };
 
-function Sidebar({ page, setPage, open, setOpen, user, staff, previewId, onPreview }: {
+function Sidebar({ page, setPage, open, setOpen, user, staff, previewId, onPreview, authMode, onChangeMode, onSignOut }: {
   page: Page; setPage: (p: Page) => void; open: boolean; setOpen: (v: boolean) => void;
   user: StaffMember | null; staff: StaffMember[]; previewId: string; onPreview: (id: string) => void;
+  authMode: 'demo' | 'real'; onChangeMode: (value: 'demo' | 'real') => void; onSignOut: () => void;
 }) {
   return <>
     {open && <button className="sidebar-backdrop" aria-label="Cerrar menú" onClick={() => setOpen(false)}/>}
@@ -75,19 +80,22 @@ function Sidebar({ page, setPage, open, setOpen, user, staff, previewId, onPrevi
       <div className="side-info"><ShieldCheck size={17}/><div><strong>Proyecto MCF</strong><small>Versión de desarrollo</small></div></div>
       <div className="sidebar-spacer"/>
       <div className="sidebar-help"><div className="help-orb"><Sparkles size={20}/></div><strong>Todo en un mismo lugar.</strong><span>Creá eventos, gestioná ventas y validá ingresos.</span><span className="help-tag">MCF TICKETS · V1</span></div>
-      <div className="demo-profile-picker"><label htmlFor="demo-profile-select">PROBAR PERMISOS · DEMO</label>
+      {authMode === 'demo' && <div className="demo-profile-picker"><label htmlFor="demo-profile-select">PROBAR PERMISOS · DEMO</label>
         <select id="demo-profile-select" aria-label="Elegir perfil de prueba" value={previewId} onChange={e => onPreview(e.target.value)}>
           <option value="guest">Visitante sin cuenta</option>{staff.map(member => <option key={member.id} value={member.id}>{member.name} · {staffRoleLabel(member.role)}</option>)}
-        </select><small>Simulador de navegación. No es un inicio de sesión seguro.</small></div>
-      <div className="user-row"><div className="user-avatar">{user?.name.slice(0,2).toUpperCase() ?? 'MC'}</div><div><strong>{user?.name ?? 'Visitante'}</strong><small>{user ? staffRoleLabel(user.role) : 'Tienda pública'} · Demo</small></div><MoreHorizontal size={17}/></div>
+        </select><small>Simulador de navegación. No es un inicio de sesión seguro.</small></div>}
+      <button className="auth-mode-switch" onClick={() => onChangeMode(authMode === 'demo' ? 'real' : 'demo')}>
+        <LockKeyhole size={15}/> {authMode === 'demo' ? 'Acceder con cuenta real' : 'Volver a la demo'}</button>
+      <div className="user-row"><div className="user-avatar">{user?.name.slice(0,2).toUpperCase() ?? 'MC'}</div><div><strong>{user?.name ?? 'Sin sesión'}</strong><small>{user ? staffRoleLabel(user.role) : 'Tienda pública'} · {authMode === 'demo' ? 'Demo' : 'Supabase'}</small></div>
+        {authMode === 'real' ? <button className="auth-signout" title="Cerrar sesión" onClick={onSignOut}><LockKeyhole size={17}/></button> : <MoreHorizontal size={17}/>}</div>
     </aside>
   </>;
 }
 
-function Topbar({ page, setOpen }: { page: Page; setOpen: (v: boolean) => void }) {
+function Topbar({ page, setOpen, authMode }: { page: Page; setOpen: (v: boolean) => void; authMode: 'demo' | 'real' }) {
   const current = menu.find(item => item.id === page) ?? scannerMenu;
   return <header className="topbar"><div className="crumbs"><button className="menu-toggle" onClick={() => setOpen(true)} aria-label="Abrir menú"><Menu size={22}/></button><span>MCF Workspace</span><ChevronRight size={15}/><strong>{current.name}</strong></div>
-    <div className="top-actions"><span className="top-mode"><span/> ENTORNO DEMO</span><span className="round-avatar">MC</span></div></header>;
+    <div className="top-actions"><span className="top-mode"><span/> {authMode === 'demo' ? 'ENTORNO DEMO' : 'CUENTA SUPABASE'}</span><span className="round-avatar">MC</span></div></header>;
 }
 
 function EventArtwork({ event, compact = false }: { event: EventItem; compact?: boolean }) {
@@ -401,10 +409,51 @@ function App() {
   const [page, setPage] = useState<Page>(getPage);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [previewId, setPreviewId] = useState(() => sessionStorage.getItem('mcf_demo_profile') || 'demo-admin');
+  const [authMode, setAuthMode] = useState<'demo' | 'real'>(() => new URLSearchParams(window.location.search).has('setup') || sessionStorage.getItem('mcf_auth_mode') === 'real' ? 'real' : 'demo');
+  const [setupPassword, setSetupPassword] = useState(() => new URLSearchParams(window.location.search).has('setup'));
+  const [authUser, setAuthUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [liveMember, setLiveMember] = useState<StaffMember | null>(null);
+  const [liveRefresh, setLiveRefresh] = useState(0);
+  const [liveError, setLiveError] = useState('');
   const staff = store.staff ?? demoStaff;
-  const currentUser = previewId === 'guest' ? null : staff.find(member => member.id === previewId) ?? null;
+  const demoUser = previewId === 'guest' ? null : staff.find(member => member.id === previewId) ?? null;
+  const currentUser = authMode === 'real' ? liveMember : demoUser;
   useEffect(()=>{storeRef.current=store;localStorage.setItem('mcf_tickets_demo_v1',JSON.stringify(store));},[store]);
   useEffect(()=>{const sync=()=>setPage(getPage());window.addEventListener('hashchange',sync);return()=>window.removeEventListener('hashchange',sync);},[]);
+  useEffect(() => {
+    if (!supabase) { setAuthReady(true); return; }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user ?? null); setAuthReady(true);
+      if (_event === 'PASSWORD_RECOVERY') setSetupPassword(true);
+    });
+    void supabase.auth.getUser().then(({ data }) => { setAuthUser(data.user ?? null); setAuthReady(true); });
+    return () => subscription.unsubscribe();
+  }, []);
+  useEffect(() => {
+    if (!supabase || !authUser) { setLiveMember(null); return; }
+    let cancelled = false;
+    const client = supabase;
+    async function loadMember() {
+      const { data: profile, error } = await client.from('profiles').select('id,display_name,role,active').eq('id', authUser!.id).maybeSingle();
+      if (cancelled) return;
+      if (error || !profile) { setLiveMember(null); setLiveError('Esta cuenta todavía no tiene un perfil autorizado. Contactá a la administradora.'); return; }
+      setLiveError('');
+      const { data: eventStaff } = await client.from('event_staff').select('event_id,can_issue_paid,courtesy_limit,courtesy_used').eq('user_id', authUser!.id);
+      if (cancelled) return;
+      setLiveMember({ id: profile.id, name: profile.display_name || authUser!.email || 'Usuario', email: authUser!.email ?? '',
+        role: profile.role === 'admin' ? 'admin' : 'promoter', active: profile.active && profile.role !== 'scanner',
+        allowedEventIds: (eventStaff ?? []).filter(item => item.can_issue_paid).map(item => item.event_id),
+        invitationEventIds: (eventStaff ?? []).filter(item => item.can_issue_paid && item.courtesy_limit > item.courtesy_used).map(item => item.event_id),
+      });
+    }
+    void loadMember();
+    return () => { cancelled = true; };
+  }, [authUser, liveRefresh]);
+  function changeMode(value: 'demo' | 'real') {
+    setAuthMode(value); sessionStorage.setItem('mcf_auth_mode', value);
+    setMobileOpen(false);
+  }
   function previewProfile(id: string) {
     setPreviewId(id);
     sessionStorage.setItem('mcf_demo_profile', id);
@@ -434,16 +483,23 @@ function App() {
     eventos:<ShopPage store={store} addTicket={addTicket}/>,
     publicos:<PublicPage key={currentUser?.id ?? 'guest'} store={store} user={currentUser} addTicket={addTicket}/>,
     scanner:<ScannerPage store={store} redeem={redeem}/>,
-    permisos:<PermissionsPage staff={staff} events={store.events} onChange={next => setStore(current => ({...current,staff:next}))} onPreview={previewProfile}/>,
+    permisos:authMode === 'real' && liveMember?.role === 'admin'
+      ? <LiveAdministration currentId={liveMember.id} onRefresh={() => setLiveRefresh(n => n+1)}/>
+      : <PermissionsPage staff={staff} events={store.events} onChange={next => setStore(current => ({...current,staff:next}))} onPreview={previewProfile}/>,
   };
   const allowed = canAccessPage(currentUser,page);
   const firstAllowed = menu.find(item => canAccessPage(currentUser,item.id));
   return <div className="app-shell"><Sidebar page={page} setPage={setPage} open={mobileOpen} setOpen={setMobileOpen}
-    user={currentUser} staff={staff} previewId={previewId} onPreview={previewProfile}/>
-    <div className="main-shell"><Topbar page={page} setOpen={setMobileOpen}/>
-      {allowed ? pageNode[page] : <section className="page-content access-denied"><div className="access-denied-card"><LockKeyhole size={43}/>
+    user={currentUser} staff={staff} previewId={previewId} onPreview={previewProfile}
+    authMode={authMode} onChangeMode={changeMode} onSignOut={() => { void supabase?.auth.signOut(); }}/>
+    <div className="main-shell"><Topbar page={page} setOpen={setMobileOpen} authMode={authMode}/>
+      {authMode === 'real' && authUser && setupPassword
+        ? <SetPasswordPanel onComplete={() => { setSetupPassword(false); window.history.replaceState(null, '', `${window.location.pathname}#/permisos`); setPage('permisos'); }}/>
+        : authMode === 'real' && (!authReady || !authUser)
+        ? <SignInPanel onDemo={() => changeMode('demo')}/>
+        : allowed ? pageNode[page] : <section className="page-content access-denied"><div className="access-denied-card"><LockKeyhole size={43}/>
         <h1>Acceso restringido</h1><p>{currentUser?.active === false ? 'Este perfil todavía está pendiente de aprobación o fue suspendido.' :
-          `El perfil ${currentUser ? staffRoleLabel(currentUser.role) : 'visitante'} no tiene permiso para abrir esta sección de MCF TICKETS.`}</p>
+          authMode === 'real' && liveError ? liveError : `El perfil ${currentUser ? staffRoleLabel(currentUser.role) : 'visitante'} no tiene permiso para abrir esta sección de MCF TICKETS.`}</p>
         <p className="access-denied-help">Aunque escribas el enlace directamente, la página no muestra el contenido de esa área. Esta prueba aún no sustituye la autenticación de Supabase.</p>
         {firstAllowed && <button className="btn btn-primary" onClick={() => {window.location.hash=`#/${firstAllowed.id}`;setPage(firstAllowed.id);}}>Ir a {firstAllowed.name} <ArrowRight size={16}/></button>}
       </div></section>}

@@ -9,7 +9,9 @@ Primera versión de una ticketera multi-evento para Argentina. El menú principa
 
 El **Lector QR** se mantiene como herramienta de demostración separada, debajo del menú principal. Lee códigos desde la cámara y simula la validación de entradas únicas. La configuración real del personal y los permisos del lector se desarrollarán más adelante.
 
-> **Estado actual: prototipo interactivo (modo demo).** La interfaz utiliza datos de ejemplo y `localStorage`. No procesa pagos reales, no envía correos, no autentica operadores y **no** sirve para validar entradas reales. **El selector de perfiles y el bloqueo visual de rutas NO son controles de seguridad:** cualquier visitante puede elegir un perfil de prueba. No usar información real ni invitar operadores hasta conectar Supabase Auth y aplicar autorización del lado del servidor. La estructura inicial de Supabase está aplicada al proyecto MCF, pero el frontend todavía no consume esos datos.
+> **Estado actual: prototipo interactivo + módulo administrativo real en preparación.** Los eventos, ventas y QR siguen en `localStorage` y son demostraciones. El nuevo botón **«Acceder con cuenta real»** permite iniciar sesión con Supabase Auth; el Panel de administración real consulta `profiles`, `event_staff` y `events` bajo RLS, y crea nuevas cuentas mediante una Edge Function autenticada. **Todavía no hay un administrador dado de alta**: primero debe invitarse el correo del titular y activarse su perfil. Ninguna emisión de tickets ni venta real utiliza aún este backend.
+
+El **modo demo sigue disponible por separado** y permite elegir perfiles ficticios sin contraseña. No debe confundirse con una sesión segura: solo las consultas reales a Supabase usan autorización del servidor. No utilizar la demo para entradas válidas, datos reales o dinero.
 
 La emisión de una entrada por RR. PP. y la compra simulada muestran ahora **solo el comprobante y el estado "Correo no enviado"**, sin QR ni token en pantalla. **Esto es una restricción visual de la demo, no una garantía de confidencialidad:** los tickets de prueba siguen en `localStorage` del navegador. Solo un backend con token secreto no entregado a los RR. PP. puede garantizar esta regla.
 
@@ -75,10 +77,12 @@ La migración está en `supabase/migrations/`. Contiene:
 
 1. [x] Crear el proyecto MCF TICKETS aislado de HOST (`takzwkxidydafgsjiqol`).
 2. [x] Aplicar las migraciones iniciales, de lotes y de auditoría de cupos y estados: diez tablas con RLS.
-3. [ ] Registrar los usuarios internos y otorgar el primer administrador por SQL con su `auth.users.id` verificado.
-4. [ ] Conectar el frontend usando únicamente `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY`. Nunca exponer una secret key en el navegador.
-5. [ ] Implementar autenticación real, enlazar los paneles a las tablas y pasar las operaciones sensibles a funciones protegidas del servidor.
-6. [ ] Ejecutar pruebas multiusuario: público sin permisos, cuotas agotadas, QR repetido, escaneo cruzado entre eventos y dos escáneres simultáneos.
+3. [ ] Invitar la primera cuenta administradora al correo privado indicado por la propietaria, verificarla y activar su `profiles` con el UUID auténtico de `auth.users`. **No insertar manualmente en `auth.users`**, ni crear contraseñas por terceros. No subir correos personales al repositorio público.
+4. [x] Conectar la pantalla de acceso real usando únicamente `VITE_SUPABASE_URL` y `VITE_SUPABASE_PUBLISHABLE_KEY` (valores públicos en `.env.production`). Nunca exponer una secret key en el navegador.
+5. [x] Implementar el login, el cambio de contraseña por invitación y la interfaz real de usuarios/permisos usando RLS. La Edge Function `manage-staff` comprueba el JWT y que el emisor sea administrador activo antes de invitar usuarios o consultar emails; `verify_jwt=true`. Los invitados se crean **inactivos** hasta que el admin los habilite.
+6. [ ] Configurar el URL de redirección de Auth para `https://allggames.github.io/MCFTICKETS/?setup=1#/permisos` y probar la invitación y recuperación de contraseña con cuentas reales.
+7. [ ] Sincronizar los eventos y ventas con Supabase; los eventos de `localStorage` todavía no pueden asignarse a RR. PP. reales por UUID.
+8. [ ] Ejecutar pruebas multiusuario: público sin permisos, cuotas agotadas, QR repetido, escaneo cruzado entre eventos y dos escáneres simultáneos.
 
 **La migración todavía no cubre todo el proceso de reservas y pagos online:** antes de activar cobros reales hacen falta bloqueo de cupos concurrente para compras, vencimiento de reservas, conciliación de reembolsos, reenvío de tickets y gestión de contracargos.
 
@@ -123,7 +127,8 @@ Las credenciales privadas (`MP_ACCESS_TOKEN`, firma de webhook y credencial de c
 - [x] Panel de eventos con Crear evento, Mis eventos e historial; fecha, lugar, descripción, imagen y URL individual; resumen general e individual de tickets vendidos e ingresos registrados.
 - [ ] Persistir en Supabase los nuevos datos, publicar los eventos y sus imágenes entre dispositivos, y aplicar SOLD OUT/cierre global en el servidor.
 - [x] Demo de roles fijos administrador/RR. PP., usuarios pendientes, asignación por evento, cambios masivos y permiso de invitaciones por RR. PP./evento (desactivado por defecto), con bloqueo visual por ruta y selector de perfiles.
-- [ ] Permisos reales en Supabase, vinculación con Auth, invitaciones y comprobación de roles/eventos en el servidor.
+- [x] Modo real con login de Supabase Auth, administración de perfiles vía RLS y Edge Function para invitar usuarios tras validar rol administrador.
+- [ ] Alta inicial del administrador, permisos probados entre cuentas distintas y sincronización de los eventos con UUID reales.
 - [x] Demo del lector QR con cámara (sujeto a permisos HTTPS) o código manual.
 - [ ] Pruebas en Supabase conectado con diferentes roles.
 - [ ] Pruebas de compra Mercado Pago sandbox y webhook.
