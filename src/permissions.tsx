@@ -180,17 +180,31 @@ export function PermissionsPage({ staff, events, onChange, onPreview }: {
           <button className="icon-button" type="button" aria-label="Cerrar" onClick={() => setDetailMemberId(null)}><X size={19}/></button></div>
         <div className="permission-detail-summary"><span><strong>{detailMember.role === 'admin' ? events.length : detailMember.allowedEventIds.filter(id => events.some(event => event.id === id)).length}</strong> eventos con venta</span>
           <span><strong>{detailMember.role === 'admin' ? events.length : detailMember.invitationEventIds.filter(id => events.some(event => event.id === id) && detailMember.allowedEventIds.includes(id)).length}</strong> eventos con invitaciones</span></div>
-        <p className="permission-detail-intro">Configurá todos los eventos de esta persona sin cambiar de pantalla. Los cambios se guardan en la demostración automáticamente.</p>
+        <p className="permission-detail-intro">Cada rectángulo representa un evento. Activá la venta y, si corresponde, el permiso para enviar invitaciones. Los cambios se guardan automáticamente en esta demostración.</p>
         <div className="permission-detail-list">
           {events.map(event => {
             const canSell = detailMember.role === 'admin' || detailMember.allowedEventIds.includes(event.id);
             const canInvite = detailMember.role === 'admin' || (canSell && detailMember.invitationEventIds.includes(event.id));
-            return <div className="permission-detail-event" key={event.id}>
+            return <div className={`permission-detail-event ${canSell ? 'permission-detail-event-enabled' : ''}`} key={event.id}>
+              <div className="permission-detail-event-top">
+                <span className="permission-detail-event-kicker">EVENTO</span>
+                <span className={`permission-detail-event-status ${canSell ? 'permission-detail-event-status-on' : ''}`}>
+                  {canInvite ? 'Venta + invitaciones' : canSell ? 'Venta habilitada' : 'Sin acceso'}
+                </span>
+              </div>
               <div className="permission-detail-event-name"><strong>{event.title}</strong><span>{dateLabel(event.date)}</span></div>
-              <label className="permission-check"><input type="checkbox" aria-label={`Permitir ventas a ${detailMember.name} en ${event.title}`}
-                checked={canSell} disabled={detailMember.role === 'admin'} onChange={() => toggleMemberEvent(detailMember, event.id)}/><span>Vender</span></label>
-              <label className="permission-check"><input type="checkbox" aria-label={`Permitir invitaciones a ${detailMember.name} en ${event.title}`}
-                checked={canInvite} disabled={detailMember.role === 'admin' || !canSell} onChange={() => toggleMemberInvitation(detailMember, event.id)}/><span>Invitar</span></label>
+              <div className="permission-detail-options">
+                <label className={`permission-detail-option ${canSell ? 'permission-detail-option-on' : ''}`}>
+                  <span className="permission-detail-option-heading">Venta de entradas</span>
+                  <span className="permission-detail-option-control"><input type="checkbox" aria-label={`Permitir ventas a ${detailMember.name} en ${event.title}`}
+                    checked={canSell} disabled={detailMember.role === 'admin'} onChange={() => toggleMemberEvent(detailMember, event.id)}/><span>{canSell ? 'Habilitada' : 'Deshabilitada'}</span></span>
+                </label>
+                <label className={`permission-detail-option ${canInvite ? 'permission-detail-option-on' : ''} ${!canSell ? 'permission-detail-option-disabled' : ''}`}>
+                  <span className="permission-detail-option-heading">Invitaciones</span>
+                  <span className="permission-detail-option-control"><input type="checkbox" aria-label={`Permitir invitaciones a ${detailMember.name} en ${event.title}`}
+                    checked={canInvite} disabled={detailMember.role === 'admin' || !canSell} onChange={() => toggleMemberInvitation(detailMember, event.id)}/><span>{canInvite ? 'Permitidas' : 'Bloqueadas'}</span></span>
+                </label>
+              </div>
             </div>;
           })}
           {!events.length && <p className="adm-empty">Todavía no hay eventos creados en esta demostración.</p>}
