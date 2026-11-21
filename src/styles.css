@@ -264,3 +264,19 @@
 .permission-user-actions .adm-open-qr:disabled{opacity:.4;cursor:not-allowed}
 .permission-user-empty{grid-column:1/-1;padding:25px!important}
 @media(max-width:600px){.permission-user-grid{padding:8px 15px 18px;gap:11px}.permission-user-card{padding:17px;gap:17px}}
+
+/* El detalle de eventos vive dentro de la ficha de cada usuario. */
+.permission-users-tools{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}
+.permission-users-tools .permission-search{max-width:240px}
+.permission-users-tools .adm-open-qr{min-height:40px}
+.permission-users-tools .adm-open-qr:disabled{cursor:not-allowed;opacity:.45}
+.permission-user-total{display:flex;flex-direction:column;gap:8px;min-width:0;border:1px solid #514468;border-radius:10px;background:#2b2540;padding:13px 12px}
+.permission-user-total strong{font:700 25px 'Space Grotesk',sans-serif;color:#dbccff}
+.permission-user-total span{font-size:10px;color:#b6afcb;line-height:1.4}
+.permission-bulk-select{display:flex;flex-direction:column;gap:9px;margin-top:8px;color:#c1adf3;letter-spacing:1px;font-size:10px;font-weight:800}
+.permission-bulk-select select{width:100%;height:44px;border-radius:9px;border:1px solid #655382;background:#25243c;color:#f3edff;padding:0 12px;min-width:0}
+.permission-bulk-stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px}
+.permission-bulk-stats span{display:flex;flex-direction:column;gap:5px;padding:12px;background:#27243a;border:1px solid #48415c;border-radius:10px;color:#aca6c2;font-size:10px;line-height:1.5}
+.permission-bulk-stats strong{font:700 20px 'Space Grotesk',sans-serif;color:#d8c8ff}
+@media(max-width:850px){.permission-users-tools{width:100%;justify-content:stretch}.permission-users-tools .permission-search{flex:1;max-width:none;min-width:170px}}
+@media(max-width:480px){.permission-users-tools{flex-direction:column;align-items:stretch}.permission-users-tools .permission-search,.permission-users-tools .adm-open-qr{width:100%}.permission-bulk-stats{grid-template-columns:1fr}.permission-modal .modal-footer{flex-wrap:wrap}}

@@ -37,6 +37,7 @@ export function PermissionsPage({ staff, events, onChange, onPreview }: {
   const [pendingAdminId, setPendingAdminId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [selectedEventId, setSelectedEventId] = useState(events[0]?.id ?? '');
+  const [showBulkManager, setShowBulkManager] = useState(false);
   const [bulkAction, setBulkAction] = useState<'enable' | 'disable' | null>(null);
   const [detailMemberId, setDetailMemberId] = useState<string | null>(null);
 
@@ -129,31 +130,16 @@ export function PermissionsPage({ staff, events, onChange, onPreview }: {
       <div className="permission-guide-item"><UsersRound size={22}/><strong>RR. PP.</strong><span>Puede vender entradas de sus eventos asignados. Las invitaciones están bloqueadas por defecto y se autorizan por separado.</span></div>
     </div>
 
-    <section className="panel permissions-event-panel">
-      <div className="panel-title"><div><h2>Asignaciones por evento</h2><p>Controlá los permisos de venta e invitaciones de cada fiesta.</p></div>
-        <span className="tiny-pill">{promoters.length} RR. PP. registrados</span></div>
-      <div className="permissions-event-controls"><label>EVENTO
-        <select aria-label="Evento para gestionar públicos" value={selectedEvent?.id ?? ''} onChange={e => setSelectedEventId(e.target.value)} disabled={!events.length}>
-          {events.map(event => <option key={event.id} value={event.id}>{event.title} · {dateLabel(event.date)}</option>)}
-        </select></label>
-        <div className="permission-event-stat"><strong>{enabledCount} / {promoters.length}</strong><span>RR. PP. activos habilitados</span></div>
-        <div className="permission-event-stat"><strong>{selectedEvent ? promoters.filter(member => member.active && member.allowedEventIds.includes(selectedEvent.id) && member.invitationEventIds.includes(selectedEvent.id)).length : 0}</strong><span>RR. PP. autorizados a invitar</span></div>
-      </div>
-      <div className="permission-event-actions"><span>Podés habilitar 10 públicos para una fiesta y 50 para otra. La búsqueda también filtra las acciones en grupo.</span>
-        <div><button className="btn btn-secondary" disabled={!selectedEvent || !filteredPromoters.length} onClick={() => setBulkAction('disable')}><X size={15}/> Deshabilitar filtrados</button>
-          <button className="btn btn-primary" disabled={!selectedEvent || !filteredPromoters.length} onClick={() => setBulkAction('enable')}><Check size={15}/> Habilitar filtrados</button></div></div>
-    </section>
-
     <section className="panel permissions-panel"><div className="panel-title"><div><h2>Usuarios registrados</h2>
-      <p>Venta e invitaciones son dos permisos distintos. Inicialmente, solo el administrador puede invitar.</p></div>
-      <input className="permission-search" aria-label="Buscar persona" placeholder="Buscar persona o correo" value={search} onChange={e => setSearch(e.target.value)}/></div>
+      <p>Elegí una persona y entrá en Configurar para darle acceso a sus eventos.</p></div>
+      <div className="permission-users-tools"><input className="permission-search" aria-label="Buscar persona" placeholder="Buscar persona o correo" value={search} onChange={e => setSearch(e.target.value)}/>
+        <button type="button" className="adm-open-qr" disabled={!events.length || !filteredPromoters.length} onClick={() => setShowBulkManager(true)}><UsersRound size={15}/> Habilitación masiva</button></div></div>
       {error && <div className="form-error permission-error"><CircleAlert size={16}/>{error}</div>}
       <div className="permission-user-grid">
         {visible.map(member => {
-          const selling = member.role === 'admin' || Boolean(selectedEvent && member.allowedEventIds.includes(selectedEvent.id));
-          const inviting = member.role === 'admin' || Boolean(selectedEvent && selling && member.invitationEventIds.includes(selectedEvent.id));
+          const salesCount = member.role === 'admin' ? events.length : events.filter(event => member.allowedEventIds.includes(event.id)).length;
+          const invitationsCount = member.role === 'admin' ? events.length : events.filter(event => member.allowedEventIds.includes(event.id) && member.invitationEventIds.includes(event.id)).length;
           const initials = member.name.split(/\s+/).slice(0, 2).map(part => part.charAt(0)).join('').toUpperCase();
-          const extraEvents = member.allowedEventIds.filter(id => id !== selectedEvent?.id && events.some(event => event.id === id)).length;
           return <article className={`permission-user-card ${member.role === 'admin' ? 'permission-user-admin' : ''}`} key={member.id}>
             <div className="permission-user-identity">
               <div className="permission-user-avatar" aria-hidden="true">{initials}</div>
@@ -167,19 +153,11 @@ export function PermissionsPage({ staff, events, onChange, onPreview }: {
                 aria-label={`${member.active ? 'Desactivar' : 'Activar'} a ${member.name}`} onClick={() => toggleActive(member)}>
                 {member.active ? <><Check size={14}/> Activo</> : <><X size={14}/> Bloqueado</>}</button></div>
             </div>
-            <div className="permission-user-event-title"><span>PERMISOS · {selectedEvent?.title ?? 'SIN EVENTOS'}</span>
-              <small>{member.role === 'admin' ? 'Todos los eventos' : `${extraEvents} ${extraEvents === 1 ? 'evento adicional' : 'eventos adicionales'}`}</small></div>
+            <div className="permission-user-event-title"><span>ACCESOS POR EVENTO</span>
+              <small>{member.role === 'admin' ? 'Acceso completo a todos los eventos' : 'Administralos desde Configurar'}</small></div>
             <div className="permission-user-choices">
-              <label className={`permission-user-choice ${selling ? 'permission-user-choice-on' : ''}`}>
-                <span>Venta de tickets</span><span className="permission-user-choice-check"><input type="checkbox" aria-label={`Autorizar a ${member.name} a vender en ${selectedEvent?.title ?? 'evento'}`}
-                  checked={selling} disabled={member.role === 'admin' || !selectedEvent} onChange={() => selectedEvent && toggleMemberEvent(member, selectedEvent.id)}/>
-                  {member.role === 'admin' ? 'Siempre' : selling ? 'Habilitada' : 'Sin acceso'}</span>
-              </label>
-              <label className={`permission-user-choice ${inviting ? 'permission-user-choice-on' : ''} ${!selling ? 'permission-user-choice-disabled' : ''}`}>
-                <span>Invitaciones</span><span className="permission-user-choice-check"><input type="checkbox" aria-label={`Autorizar a ${member.name} a enviar invitaciones en ${selectedEvent?.title ?? 'evento'}`}
-                  checked={inviting} disabled={member.role === 'admin' || !selectedEvent || !selling} onChange={() => selectedEvent && toggleMemberInvitation(member, selectedEvent.id)}/>
-                  {member.role === 'admin' ? 'Siempre' : inviting ? 'Permitidas' : 'Solo admin'}</span>
-              </label>
+              <div className="permission-user-total"><strong>{salesCount}</strong><span>Eventos con venta</span></div>
+              <div className="permission-user-total"><strong>{invitationsCount}</strong><span>Eventos con invitaciones</span></div>
             </div>
             <div className="permission-user-actions">
               <button type="button" className="adm-open-qr" onClick={() => setDetailMemberId(member.id)} aria-label={`Gestionar eventos de ${member.name}`}><Settings2 size={15}/> Configurar</button>
@@ -191,6 +169,25 @@ export function PermissionsPage({ staff, events, onChange, onPreview }: {
       </div>
       <div className="adm-data-note"><LockKeyhole size={16}/><span>Las invitaciones son QR de cortesía sin cobro. Por defecto solo las emite el administrador. Podés autorizar a un RR. PP. para un evento puntual; si le quitás ese evento, pierde también el permiso de invitaciones. El lector QR se configurará más adelante.</span></div>
     </section>
+
+    {showBulkManager && <div className="modal-layer" onMouseDown={e => { if (e.target === e.currentTarget) setShowBulkManager(false); }}>
+      <div className="modal-card permission-modal" role="dialog" aria-modal="true" aria-labelledby="permission-bulk-manager-title">
+        <div className="modal-header"><div><h2 id="permission-bulk-manager-title">Habilitación masiva</h2>
+          <p>Asigná o quitá el permiso de venta a varios RR. PP. en un solo evento.</p></div>
+          <button className="icon-button" type="button" aria-label="Cerrar" onClick={() => setShowBulkManager(false)}><X size={19}/></button></div>
+        <label className="permission-bulk-select">EVENTO
+          <select value={selectedEvent?.id ?? ''} onChange={e => setSelectedEventId(e.target.value)} disabled={!events.length}>
+            {events.map(event => <option key={event.id} value={event.id}>{event.title} · {dateLabel(event.date)}</option>)}
+          </select>
+        </label>
+        <div className="permission-bulk-stats"><span><strong>{filteredPromoters.length}</strong> RR. PP. seleccionados por búsqueda</span>
+          <span><strong>{enabledCount}</strong> RR. PP. activos habilitados actualmente</span></div>
+        <p className="adm-helper">Solo se modifican los RR. PP. que aparecen en la búsqueda de Usuarios registrados. Los administradores nunca se incluyen.</p>
+        <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={() => setShowBulkManager(false)}>Cancelar</button>
+          <button type="button" className="btn btn-secondary" disabled={!selectedEvent || !filteredPromoters.length} onClick={() => { setShowBulkManager(false); setBulkAction('disable'); }}><X size={15}/> Deshabilitar</button>
+          <button type="button" className="btn btn-primary" disabled={!selectedEvent || !filteredPromoters.length} onClick={() => { setShowBulkManager(false); setBulkAction('enable'); }}><Check size={15}/> Habilitar</button></div>
+      </div>
+    </div>}
 
     {detailMember && <div className="modal-layer" onMouseDown={e => { if (e.target === e.currentTarget) setDetailMemberId(null); }}>
       <div className="modal-card permission-modal permission-detail-modal" role="dialog" aria-modal="true" aria-labelledby="permission-detail-title">
