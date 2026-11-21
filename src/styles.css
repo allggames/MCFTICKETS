@@ -230,3 +230,37 @@
 .permission-detail-modal .modal-footer{margin-top:15px}
 @media(max-width:600px){.permission-detail-modal{padding:20px}.permission-detail-summary>span{padding:11px;gap:7px;font-size:10px}.permission-detail-event{min-height:200px;padding:16px}.permission-detail-options{gap:9px}}
 @media(max-width:390px){.permission-detail-summary{grid-template-columns:1fr}.permission-detail-modal{padding:16px}}
+
+/* Usuarios registrados: fichas rectangulares, una junto a otra. */
+.permission-user-grid{padding:8px 22px 23px;display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr));gap:14px;align-items:stretch}
+.permission-user-card{display:flex;flex-direction:column;min-width:0;gap:19px;padding:20px;background:linear-gradient(155deg,#232239,#1b1d2e);border:1px solid #46415e;border-radius:15px;box-shadow:0 8px 24px #09091823;transition:border-color .18s,transform .18s}
+.permission-user-card:hover{border-color:#8570bb;transform:translateY(-2px)}
+.permission-user-admin{background:linear-gradient(155deg,#2b2441,#1d1e31);border-color:#68558e}
+.permission-user-identity{display:flex;align-items:center;gap:11px;min-width:0}
+.permission-user-avatar{display:grid;place-items:center;flex:0 0 43px;height:43px;border-radius:12px;background:#6244ad;color:#f5ecff;font:700 14px 'Space Grotesk',sans-serif;border:1px solid #8667cc}
+.permission-user-admin .permission-user-avatar{background:linear-gradient(135deg,#7c54be,#b37fac)}
+.permission-user-name{display:flex;flex-direction:column;min-width:0;gap:5px;flex:1}
+.permission-user-name strong{font:700 14px 'Space Grotesk',sans-serif;color:#f4f0ff;overflow-wrap:anywhere}
+.permission-user-name span{font-size:10px;color:#9694b1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.permission-user-tag{flex:none;color:#c7b8f2;background:#3e305a;border:1px solid #6b548e;padding:5px 7px;border-radius:6px;font-size:9px;font-weight:800;letter-spacing:.5px}
+.permission-user-settings{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.permission-user-field{display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:0}
+.permission-user-field>span{font-size:9px;letter-spacing:1px;font-weight:800;color:#a6a1bf}
+.permission-user-field .permission-role{width:100%;max-width:none;height:39px;padding:0 9px}
+.permission-user-field .permission-status{min-height:39px;max-width:100%;font-size:10px}
+.permission-user-event-title{display:flex;flex-direction:column;gap:6px;padding-top:15px;border-top:1px solid #39364e;min-width:0}
+.permission-user-event-title>span{font-size:10px;font-weight:800;letter-spacing:.5px;color:#d4c4ff;overflow-wrap:anywhere}
+.permission-user-event-title small{font-size:10px;color:#9290ad}
+.permission-user-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.permission-user-choice{display:flex;flex-direction:column;justify-content:space-between;gap:12px;padding:13px 11px;border:1px solid #46435f;border-radius:10px;background:#202035;color:#aaa7c3;font-size:10px;cursor:pointer;min-width:0}
+.permission-user-choice-on{background:#302742;border-color:#6b528f}
+.permission-user-choice-disabled{opacity:.65;cursor:not-allowed}
+.permission-user-choice>span:first-child{font-weight:700;color:#cbc4e2}
+.permission-user-choice-check{display:flex;align-items:center;gap:7px;font-size:10px;font-weight:700;color:#e5ddfa;min-width:0;overflow-wrap:anywhere}
+.permission-user-choice-check input{flex:none;width:16px;height:16px;accent-color:#a487ff;cursor:pointer}
+.permission-user-choice-check input:disabled{cursor:not-allowed}
+.permission-user-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:auto}
+.permission-user-actions .adm-open-qr{width:100%;justify-content:center;font-size:10px;padding:11px 7px;white-space:normal;text-align:center}
+.permission-user-actions .adm-open-qr:disabled{opacity:.4;cursor:not-allowed}
+.permission-user-empty{grid-column:1/-1;padding:25px!important}
+@media(max-width:600px){.permission-user-grid{padding:8px 15px 18px;gap:11px}.permission-user-card{padding:17px;gap:17px}}

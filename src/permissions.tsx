@@ -148,28 +148,47 @@ export function PermissionsPage({ staff, events, onChange, onPreview }: {
       <p>Venta e invitaciones son dos permisos distintos. Inicialmente, solo el administrador puede invitar.</p></div>
       <input className="permission-search" aria-label="Buscar persona" placeholder="Buscar persona o correo" value={search} onChange={e => setSearch(e.target.value)}/></div>
       {error && <div className="form-error permission-error"><CircleAlert size={16}/>{error}</div>}
-      <div className="permissions-table-scroll"><table className="data-table permissions-table"><thead><tr>
-        <th>PERSONA</th><th>ROL</th><th>VENTA · {selectedEvent?.title ?? 'EVENTO'}</th><th>INVITACIONES</th><th>OTROS EVENTOS</th><th>USUARIO</th><th>GESTIÓN</th><th>VISTA PREVIA</th>
-      </tr></thead><tbody>{visible.map(member => <tr key={member.id}>
-        <td><strong>{member.name}</strong><small className="table-secondary">{member.email}</small>{member.role === 'admin' && <small className="permission-full-access">Acceso completo</small>}</td>
-        <td><select className="permission-role" aria-label={`Rol de ${member.name}`} value={member.role} onChange={e => changeRole(member, e.target.value as StaffRole)}>
-          <option value="admin">Administrador</option><option value="promoter">RR. PP.</option></select></td>
-        <td><label className="permission-check"><input type="checkbox" aria-label={`Autorizar a ${member.name} a vender en ${selectedEvent?.title ?? 'evento'}`}
-          checked={member.role === 'admin' || Boolean(selectedEvent && member.allowedEventIds.includes(selectedEvent.id))}
-          disabled={member.role === 'admin' || !selectedEvent} onChange={() => selectedEvent && toggleMemberEvent(member, selectedEvent.id)}/>
-          <span>{member.role === 'admin' ? 'Siempre' : selectedEvent && member.allowedEventIds.includes(selectedEvent.id) ? 'Habilitado' : 'Sin acceso'}</span></label></td>
-        <td><label className="permission-check permission-invite-check"><input type="checkbox" aria-label={`Autorizar a ${member.name} a enviar invitaciones en ${selectedEvent?.title ?? 'evento'}`}
-          checked={member.role === 'admin' || Boolean(selectedEvent && member.invitationEventIds.includes(selectedEvent.id) && member.allowedEventIds.includes(selectedEvent.id))}
-          disabled={member.role === 'admin' || !selectedEvent || !member.allowedEventIds.includes(selectedEvent.id)} onChange={() => selectedEvent && toggleMemberInvitation(member, selectedEvent.id)}/>
-          <span>{member.role === 'admin' ? 'Siempre' : selectedEvent && member.invitationEventIds.includes(selectedEvent.id) && member.allowedEventIds.includes(selectedEvent.id) ? 'Permitido' : 'Solo admin'}</span></label></td>
-        <td><span className="permission-event-count">{member.role === 'admin' ? 'Todos' : `${member.allowedEventIds.filter(id => id !== selectedEvent?.id && events.some(event => event.id === id)).length} adicionales`}</span></td>
-        <td><button className={`permission-status ${member.active ? 'permission-active' : 'permission-pending'}`} onClick={() => toggleActive(member)}>
-          {member.active ? <><Check size={14}/> Activo</> : <><X size={14}/> Pendiente / bloqueado</>}</button></td>
-        <td><button className="adm-open-qr" onClick={() => setDetailMemberId(member.id)} aria-label={`Gestionar eventos de ${member.name}`}><Settings2 size={15}/> Configurar</button></td>
-        <td><button className="adm-open-qr" disabled={!member.active} onClick={() => onPreview(member.id)}><Eye size={15}/> Probar acceso</button></td>
-      </tr>)}
-      {!visible.length && <tr><td colSpan={8} className="adm-empty">No encontramos personas con esa búsqueda.</td></tr>}
-      </tbody></table></div>
+      <div className="permission-user-grid">
+        {visible.map(member => {
+          const selling = member.role === 'admin' || Boolean(selectedEvent && member.allowedEventIds.includes(selectedEvent.id));
+          const inviting = member.role === 'admin' || Boolean(selectedEvent && selling && member.invitationEventIds.includes(selectedEvent.id));
+          const initials = member.name.split(/\s+/).slice(0, 2).map(part => part.charAt(0)).join('').toUpperCase();
+          const extraEvents = member.allowedEventIds.filter(id => id !== selectedEvent?.id && events.some(event => event.id === id)).length;
+          return <article className={`permission-user-card ${member.role === 'admin' ? 'permission-user-admin' : ''}`} key={member.id}>
+            <div className="permission-user-identity">
+              <div className="permission-user-avatar" aria-hidden="true">{initials}</div>
+              <div className="permission-user-name"><strong>{member.name}</strong><span title={member.email}>{member.email}</span></div>
+              <span className="permission-user-tag">{member.role === 'admin' ? 'ADMIN' : 'RR. PP.'}</span>
+            </div>
+            <div className="permission-user-settings">
+              <label className="permission-user-field"><span>ROL</span><select className="permission-role" aria-label={`Rol de ${member.name}`} value={member.role} onChange={e => changeRole(member, e.target.value as StaffRole)}>
+                <option value="admin">Administrador</option><option value="promoter">RR. PP.</option></select></label>
+              <div className="permission-user-field"><span>ESTADO</span><button type="button" className={`permission-status ${member.active ? 'permission-active' : 'permission-pending'}`}
+                aria-label={`${member.active ? 'Desactivar' : 'Activar'} a ${member.name}`} onClick={() => toggleActive(member)}>
+                {member.active ? <><Check size={14}/> Activo</> : <><X size={14}/> Bloqueado</>}</button></div>
+            </div>
+            <div className="permission-user-event-title"><span>PERMISOS · {selectedEvent?.title ?? 'SIN EVENTOS'}</span>
+              <small>{member.role === 'admin' ? 'Todos los eventos' : `${extraEvents} ${extraEvents === 1 ? 'evento adicional' : 'eventos adicionales'}`}</small></div>
+            <div className="permission-user-choices">
+              <label className={`permission-user-choice ${selling ? 'permission-user-choice-on' : ''}`}>
+                <span>Venta de tickets</span><span className="permission-user-choice-check"><input type="checkbox" aria-label={`Autorizar a ${member.name} a vender en ${selectedEvent?.title ?? 'evento'}`}
+                  checked={selling} disabled={member.role === 'admin' || !selectedEvent} onChange={() => selectedEvent && toggleMemberEvent(member, selectedEvent.id)}/>
+                  {member.role === 'admin' ? 'Siempre' : selling ? 'Habilitada' : 'Sin acceso'}</span>
+              </label>
+              <label className={`permission-user-choice ${inviting ? 'permission-user-choice-on' : ''} ${!selling ? 'permission-user-choice-disabled' : ''}`}>
+                <span>Invitaciones</span><span className="permission-user-choice-check"><input type="checkbox" aria-label={`Autorizar a ${member.name} a enviar invitaciones en ${selectedEvent?.title ?? 'evento'}`}
+                  checked={inviting} disabled={member.role === 'admin' || !selectedEvent || !selling} onChange={() => selectedEvent && toggleMemberInvitation(member, selectedEvent.id)}/>
+                  {member.role === 'admin' ? 'Siempre' : inviting ? 'Permitidas' : 'Solo admin'}</span>
+              </label>
+            </div>
+            <div className="permission-user-actions">
+              <button type="button" className="adm-open-qr" onClick={() => setDetailMemberId(member.id)} aria-label={`Gestionar eventos de ${member.name}`}><Settings2 size={15}/> Configurar</button>
+              <button type="button" className="adm-open-qr" disabled={!member.active} onClick={() => onPreview(member.id)}><Eye size={15}/> Probar acceso</button>
+            </div>
+          </article>;
+        })}
+        {!visible.length && <p className="adm-empty permission-user-empty">No encontramos personas con esa búsqueda.</p>}
+      </div>
       <div className="adm-data-note"><LockKeyhole size={16}/><span>Las invitaciones son QR de cortesía sin cobro. Por defecto solo las emite el administrador. Podés autorizar a un RR. PP. para un evento puntual; si le quitás ese evento, pierde también el permiso de invitaciones. El lector QR se configurará más adelante.</span></div>
     </section>
 
