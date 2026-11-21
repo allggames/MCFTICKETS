@@ -5,15 +5,15 @@ import QRCode from 'qrcode';
 import {
   Activity, ArrowRight, CalendarDays,
   Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleAlert,
-  Clock3, Copy, CreditCard, Download, Fingerprint, LayoutDashboard, LockKeyhole,
-  Mail, Menu, MoreHorizontal, Plus, QrCode, Search, ShieldCheck, ShoppingBag,
+  Clock3, Copy, CreditCard, Download, FilePenLine, Fingerprint, History, LayoutDashboard, LockKeyhole,
+  Mail, MapPin, Menu, MoreHorizontal, Plus, QrCode, Search, ShieldCheck, ShoppingBag,
   Smartphone, Sparkles, Ticket as TicketIcon, TicketCheck, UserRoundPlus, UsersRound, Settings2,
   Wallet, X, XCircle,
 } from 'lucide-react';
 import {
-  dateLabel, demoStaff, eventCanIssueTickets, eventDisplayStatus, eventHasEnded,
+  dateLabel, demoStaff, eventCanIssueTickets, eventCategory, eventDisplayStatus, eventHasEnded,
   eventPublicUrl, formatMoney, loadStore, makeDemoTicket, sellableTiers,
-  type EventDisplayStatus, type EventItem, type StaffMember, type Store, type Ticket,
+  type EventCategory, type EventItem, type StaffMember, type Store, type Ticket,
 } from './data';
 import { AdminEventManager } from './admin-management';
 import { EventCreateForm } from './event-create';
@@ -108,63 +108,92 @@ function EventArtwork({ event, compact = false }: { event: EventItem; compact?: 
   </div>;
 }
 
-function EventTable({ events, tickets, selectedId, onSelect, onPublish, onClose }: {
-  events: EventItem[]; tickets: Ticket[]; selectedId: string;
+function EventOverviewCard({ event, tickets, selected, onSelect, onPublish, onClose }: {
+  event: EventItem; tickets: Ticket[]; selected: boolean;
   onSelect: (id: string) => void; onPublish: (id: string) => void; onClose: (id: string) => void;
 }) {
-  return <div className="table-scroll"><table className="data-table"><thead><tr><th>EVENTO</th><th>INICIO</th><th>FIN</th><th>TICKETS VENDIDOS</th><th>INGRESOS REGISTRADOS*</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody>
-    {events.map(event => {
-      const rows = tickets.filter(t => t.eventId === event.id);
-      const sales = rows.filter(t => t.status !== 'void' && t.source !== 'cortesia' && t.paymentStatus !== 'refunded');
-      const money = sales.reduce((n, t) => n + t.price, 0);
-      const displayStatus = eventDisplayStatus(event);
-      return <tr key={event.id} className={selectedId === event.id ? 'adm-selected-event' : ''}><td><button className="adm-event-name" onClick={() => onSelect(event.id)}><div className="table-event"><span className="event-initial" style={{ background: event.accent }}>{event.title.substring(0, 1)}</span><span><strong>{event.title}</strong><small>{event.venue}</small></span></div></button></td>
-        <td>{dateLabel(event.date)}<small className="table-secondary">{event.time} hs</small></td>
-        <td>{event.endDate ? dateLabel(event.endDate) : 'Sin definir'}{event.endTime && <small className="table-secondary">{event.endTime} hs</small>}</td>
-        <td><strong>{sales.length}</strong><span className="subtle"> / {event.tiers.reduce((n, t) => n + t.capacity, 0)} cupos</span></td><td className="money-cell">{formatMoney(money)}</td>
-        <td><Pill tone={displayStatus === 'published' ? 'green' : displayStatus === 'draft' ? 'yellow' : 'neutral'}>{displayStatus === 'past' ? 'Evento pasado' : displayStatus === 'published' ? 'Publicado' : displayStatus === 'draft' ? 'Borrador' : 'Cerrado'}</Pill></td>
-        <td><div className="adm-event-actions"><button className="adm-open-qr" onClick={() => onSelect(event.id)}>Gestionar</button>
-          {displayStatus === 'draft' && <button className="adm-event-publish" onClick={() => onPublish(event.id)}>Publicar</button>}
-          {displayStatus === 'published' && <button className="adm-event-close" onClick={() => onClose(event.id)}>Cerrar evento</button>}
-          {(displayStatus === 'closed' || displayStatus === 'past') && <span className="adm-history-label">En historial</span>}
-          <button className="adm-event-copy" title="Copiar URL pública" aria-label={`Copiar URL de ${event.title}`} onClick={() => navigator.clipboard?.writeText(eventPublicUrl(event))}><Copy size={15}/></button>
-        </div></td></tr>;
-    })}
-  </tbody></table></div>;
+  const rows = tickets.filter(ticket => ticket.eventId === event.id);
+  const sold = rows.filter(ticket => ticket.status !== 'void' && ticket.source !== 'cortesia' && ticket.paymentStatus !== 'refunded');
+  const income = sold.reduce((sum, ticket) => sum + ticket.price, 0);
+  const capacity = event.tiers.reduce((sum, tier) => sum + tier.capacity, 0);
+  const displayStatus = eventDisplayStatus(event);
+  const category = eventCategory(event);
+  const label = displayStatus === 'past' ? 'Evento pasado' : displayStatus === 'closed' ? 'Cerrado' :
+    displayStatus === 'draft' ? 'Borrador' : category === 'active' ? 'En curso' : 'Próximo';
+
+  return <article className={`event-overview-card ${selected ? 'event-overview-selected' : ''}`}>
+    <div className="event-overview-cover"><EventArtwork event={event} compact/>
+      <span className={`event-overview-badge event-overview-badge-${category}`}>{label}</span></div>
+    <div className="event-overview-body">
+      <div className="event-overview-heading"><h3>{event.title}</h3><span>{event.batches.length} {event.batches.length === 1 ? 'lote' : 'lotes'}</span></div>
+      <div className="event-overview-dates"><div><CalendarDays size={15}/><span><b>Inicio</b>{dateLabel(event.date)} · {event.time} hs</span></div>
+        <div><Clock3 size={15}/><span><b>Fin</b>{event.endDate ? `${dateLabel(event.endDate)} · ${event.endTime ?? '—'} hs` : 'Sin configurar'}</span></div>
+        <div><MapPin size={15}/><span>{event.venue} · {event.city}</span></div></div>
+      <div className="event-overview-stats"><div><strong>{sold.length}</strong><span>Vendidas</span></div>
+        <div><strong>{capacity}</strong><span>Cupos</span></div>
+        <div><strong>{formatMoney(income)}</strong><span>Ingresos*</span></div></div>
+      <div className="event-overview-actions"><button type="button" className="btn btn-primary" onClick={() => onSelect(event.id)}>Gestionar <ArrowRight size={16}/></button>
+        {displayStatus === 'draft' && <button type="button" className="adm-event-publish" onClick={() => onPublish(event.id)}>Publicar</button>}
+        {displayStatus === 'published' && <button type="button" className="adm-event-close" onClick={() => onClose(event.id)}>Cerrar</button>}
+        <button type="button" className="adm-event-copy" title="Copiar URL pública" aria-label={`Copiar URL de ${event.title}`} onClick={() => navigator.clipboard?.writeText(eventPublicUrl(event))}><Copy size={15}/></button>
+      </div>
+    </div>
+  </article>;
 }
 
 function AdminPage({ store, updateStore }: { store: Store; updateStore: (next: Store) => void }) {
   const [view, setView] = useState<'mine' | 'create'>('mine');
-  const [selectedEventId, setSelectedEventId] = useState(store.events[0]?.id ?? '');
+  const [selectedEventId, setSelectedEventId] = useState('');
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [closeConfirmId, setCloseConfirmId] = useState<string | null>(null);
   const [q, setQ] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | EventDisplayStatus>('all');
+  const [category, setCategory] = useState<EventCategory>('upcoming');
   const revenue = store.tickets.filter(t => t.status !== 'void' && t.paymentStatus === 'approved').reduce((sum, ticket) => sum + ticket.price, 0);
   const reported = store.tickets.filter(t => t.status !== 'void' && t.paymentStatus === 'reported').reduce((sum, ticket) => sum + ticket.price, 0);
   const soldTickets = store.tickets.filter(ticket => ticket.status !== 'void' && ticket.source !== 'cortesia' && ticket.paymentStatus !== 'refunded');
   const checked = store.tickets.filter(ticket => ticket.status === 'used').length;
-  const selectedEvent = store.events.find(event => event.id === selectedEventId) ?? store.events[0];
+  const selectedEvent = store.events.find(event => event.id === selectedEventId);
   const visibleEvents = store.events.filter(event => event.title.toLowerCase().includes(q.toLowerCase()) &&
-    (statusFilter === 'all' || eventDisplayStatus(event) === statusFilter)).slice().sort((a, b) => b.date.localeCompare(a.date));
+    eventCategory(event) === category).slice().sort((a, b) => category === 'upcoming'
+      ? `${a.date}T${a.time}`.localeCompare(`${b.date}T${b.time}`)
+      : `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
   const bySource = ['online', 'publico', 'cortesia'].map(source => ({ source, count: store.tickets.filter(ticket => ticket.source === source).length }));
   const maxSource = Math.max(1, ...bySource.map(source => source.count));
 
   function createEvent(event: EventItem) {
     updateStore({ ...store, events: [...store.events, event] });
     setSelectedEventId(event.id);
-    setStatusFilter('all');
+    setCategory('draft');
     setView('mine');
   }
   function publishEvent(id: string) {
+    const current = store.events.find(event => event.id === id);
+    if (!current || eventHasEnded(current)) return;
     updateStore({ ...store, events: store.events.map(event => event.id === id && event.status === 'draft' && !eventHasEnded(event)
       ? { ...event, status: 'published' as const } : event) });
+    setCategory(eventCategory({ ...current, status: 'published' }));
   }
   function closeEvent(id: string) {
     updateStore({ ...store, events: store.events.map(event => event.id === id && event.status === 'published' && !eventHasEnded(event)
       ? { ...event, status: 'closed' as const } : event) });
+    setCategory('past');
     setCloseConfirmId(null);
   }
+  function manageEvent(id: string) {
+    setSelectedEventId(id);
+    window.setTimeout(() => document.getElementById('mcf-event-details')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 40);
+  }
+  function chooseCategory(next: EventCategory) {
+    setCategory(next);
+    setSelectedEventId('');
+  }
+
+  const categoryOptions = [
+    { id: 'upcoming' as const, title: 'Próximos', hint: 'Por realizarse', icon: CalendarDays },
+    { id: 'active' as const, title: 'En curso', hint: 'Ya comenzaron', icon: Activity },
+    { id: 'past' as const, title: 'Pasados', hint: 'Finalizados o cerrados', icon: History },
+    { id: 'draft' as const, title: 'Borradores', hint: 'Sin publicar', icon: FilePenLine },
+  ];
 
   return <section className="page-content">
     <div className="page-heading"><div><div className="section-eyebrow">GESTIÓN DE EVENTOS <span className="eyebrow-line"/></div>
@@ -184,15 +213,31 @@ function AdminPage({ store, updateStore }: { store: Store; updateStore: (next: S
       <div className="source-bars">{bySource.map(({ source, count }) => <div className="bar-row" key={source}><span>{source === 'online' ? 'Venta online' : source === 'publico' ? 'Públicos' : 'Cortesías'}</span><div className="bar-track"><div className={`bar-fill bar-${source}`} style={{ width: `${count / maxSource * 100}%` }}/></div><strong>{count}</strong></div>)}</div>
       <div className="panel-total"><span>Total de ventas registradas (demo)</span><strong>{formatMoney(revenue + reported)}</strong></div>
     </section><section className="panel insights-panel"><div className="panel-title"><div><h2>Estado de accesos</h2><p>Seguimiento de QR en tiempo real*</p></div><Activity size={21} color="#a88afd"/></div><div className="donut-row"><div className="donut" style={{ '--used': `${(checked / Math.max(1, store.tickets.length)) * 100}%` } as React.CSSProperties}><div><strong>{Math.round((checked / Math.max(1, store.tickets.length)) * 100)}%</strong><small>utilizados</small></div></div><div className="donut-legend"><span><i className="legend-purple"/>Por ingresar <strong>{store.tickets.filter(t => t.status === 'valid').length}</strong></span><span><i className="legend-green"/>Ingresaron <strong>{checked}</strong></span><span><i className="legend-muted"/>Anulados <strong>{store.tickets.filter(t => t.status === 'void').length}</strong></span></div></div><small className="insights-note">* En la demo, los cambios se guardan en este navegador.</small></section></div>
-    <section className="panel events-panel"><div className="panel-title table-title"><div><h2>Mis eventos · Historial</h2><p>Incluye próximos eventos, borradores y eventos pasados. Seleccioná uno para ver sus lotes y números.</p></div>
-      <div className="event-history-filters"><label className="search-box"><Search size={17}/><input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar evento" aria-label="Buscar evento"/></label>
-      <select aria-label="Filtrar eventos por estado" value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}>
-        <option value="all">Todos los eventos</option><option value="published">Publicados</option><option value="draft">Borradores</option><option value="closed">Cerrados manualmente</option><option value="past">Eventos pasados</option></select></div></div>
-      <EventTable events={visibleEvents} tickets={store.tickets} selectedId={selectedEvent?.id ?? ''}
-        onSelect={setSelectedEventId} onPublish={publishEvent} onClose={setCloseConfirmId}/></section>
-    {selectedEvent && <AdminEventManager key={selectedEvent.id} event={selectedEvent} existingEvents={store.events} tickets={store.tickets}
+    <section className="events-overview-section" aria-label="Mis eventos">
+      <div className="events-overview-heading"><div><span className="section-eyebrow">ORGANIZACIÓN DE EVENTOS</span><h2>Mis eventos</h2><p>Elegí una categoría para consultar o gestionar cada evento.</p></div><span className="tiny-pill">{store.events.length} en total</span></div>
+      <div className="events-overview-categories" role="group" aria-label="Categorías de eventos">
+        {categoryOptions.map(option => { const Icon = option.icon; const count = store.events.filter(event => eventCategory(event) === option.id).length;
+          return <button type="button" key={option.id} className={`events-category-card events-category-${option.id} ${category === option.id ? 'events-category-selected' : ''}`}
+            aria-pressed={category === option.id} onClick={() => chooseCategory(option.id)}>
+            <span className="events-category-top"><Icon size={21}/><strong>{count}</strong></span>
+            <span className="events-category-name">{option.title}</span><small>{option.hint}</small>
+          </button>;
+        })}
+      </div>
+      <section className="panel events-panel events-gallery-panel"><div className="panel-title table-title"><div><h2>{categoryOptions.find(option => option.id === category)?.title} <span className="events-gallery-count">{visibleEvents.length}</span></h2>
+        <p>Seleccioná Gestionar para ver lotes, sectores, tickets e ingresos del evento.</p></div>
+        <label className="search-box"><Search size={17}/><input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar evento" aria-label="Buscar evento"/></label></div>
+        {visibleEvents.length ? <div className="events-overview-grid">{visibleEvents.map(event =>
+          <EventOverviewCard key={event.id} event={event} tickets={store.tickets} selected={selectedEventId === event.id}
+            onSelect={manageEvent} onPublish={publishEvent} onClose={setCloseConfirmId}/>)}</div>
+          : <div className="events-gallery-empty"><CalendarDays size={30}/><h3>{q ? 'No encontramos eventos' : `No hay eventos en ${categoryOptions.find(option => option.id === category)?.title.toLowerCase()}`}</h3>
+              <p>{q ? 'Probá con otro nombre o cambiá de categoría.' : 'Cuando haya eventos de esta categoría, aparecerán acá con sus datos y accesos de gestión.'}</p>
+              {!q && category === 'draft' && <button className="btn btn-primary" onClick={() => setView('create')}><Plus size={16}/> Crear evento</button>}</div>}
+      </section>
+    </section>
+    {selectedEvent && <div id="mcf-event-details"><AdminEventManager key={selectedEvent.id} event={selectedEvent} existingEvents={store.events} tickets={store.tickets}
       onChange={next => updateStore({ ...store, events: store.events.map(e => e.id === next.id ? next : e) })}
-      onViewTicket={setSelectedTicket}/>}
+      onViewTicket={setSelectedTicket}/></div>}
     <div className="bottom-hint"><Fingerprint size={17}/><span>* Ingresos brutos informados en modo demo. No son ganancias netas ni cobros comprobados; falta conciliar pagos y descuentos de Mercado Pago.</span></div>
     </>}
     {closeConfirmId && <div className="modal-layer" onMouseDown={e => { if (e.target === e.currentTarget) setCloseConfirmId(null); }}>

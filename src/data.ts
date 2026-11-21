@@ -158,9 +158,22 @@ export function eventTimeRangeValid(date: string, time: string, endDate?: string
 
 export function eventHasEnded(event: EventItem, now = new Date()): boolean {
   if (!event.endDate || !event.endTime) return false;
+  return argentinaDateTime(now) >= `${event.endDate}T${event.endTime}`;
+}
+
+function argentinaDateTime(now: Date): string {
   const parts = Object.fromEntries(argentinaClock.formatToParts(now).map(part => [part.type, part.value]));
-  const current = `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
-  return current >= `${event.endDate}T${event.endTime}`;
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+}
+
+export const eventHasStarted = (event: EventItem, now = new Date()): boolean =>
+  Boolean(event.date && event.time && argentinaDateTime(now) >= `${event.date}T${event.time}`);
+
+export type EventCategory = 'upcoming' | 'active' | 'past' | 'draft';
+export function eventCategory(event: EventItem, now = new Date()): EventCategory {
+  if (event.status === 'closed' || eventHasEnded(event, now)) return 'past';
+  if (event.status === 'draft') return 'draft';
+  return eventHasStarted(event, now) ? 'active' : 'upcoming';
 }
 
 export type EventDisplayStatus = EventItem['status'] | 'past';
