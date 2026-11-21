@@ -3,7 +3,7 @@ import {
   CalendarDays, Check, CircleAlert, ClipboardList, Eye, Layers3, Pencil,
   Plus, QrCode, Search, TicketCheck, Wallet, X,
 } from 'lucide-react';
-import { batchSoldOut, dateLabel, eventPublicUrl, formatMoney, makeId, slugifyEvent, type Batch, type BatchStatusChange, type CapacityChange, type EventItem, type Ticket, type Tier } from './data';
+import { batchSoldOut, dateLabel, eventHasEnded, eventPublicUrl, eventTimeRangeValid, formatMoney, makeId, slugifyEvent, type Batch, type BatchStatusChange, type CapacityChange, type EventItem, type Ticket, type Tier } from './data';
 
 type SectorInput = { key: string; name: string; price: string; capacity: string };
 
@@ -30,7 +30,7 @@ export function AdminEventManager({ event, existingEvents, tickets, onChange, on
   const [ticketSourceFilter, setTicketSourceFilter] = useState('all');
   const [editingEvent, setEditingEvent] = useState(false);
   const [detailsError, setDetailsError] = useState('');
-  const [details, setDetails] = useState({ title: event.title, date: event.date, time: event.time,
+  const [details, setDetails] = useState({ title: event.title, date: event.date, time: event.time, endDate: event.endDate ?? '', endTime: event.endTime ?? '',
     venue: event.venue, city: event.city, subtitle: event.subtitle, description: event.description ?? '',
     slug: event.slug ?? slugifyEvent(event.title), imageUrl: event.imageUrl ?? '' });
   const [showBatchForm, setShowBatchForm] = useState(false);
@@ -46,7 +46,7 @@ export function AdminEventManager({ event, existingEvents, tickets, onChange, on
   const [pendingBatchAction, setPendingBatchAction] = useState<{ id: string; status: Batch['status'] } | null>(null);
 
   useEffect(() => {
-    setDetails({ title: event.title, date: event.date, time: event.time,
+    setDetails({ title: event.title, date: event.date, time: event.time, endDate: event.endDate ?? '', endTime: event.endTime ?? '',
       venue: event.venue, city: event.city, subtitle: event.subtitle, description: event.description ?? '',
       slug: event.slug ?? slugifyEvent(event.title), imageUrl: event.imageUrl ?? '' });
     setEditingEvent(false);
@@ -61,6 +61,7 @@ export function AdminEventManager({ event, existingEvents, tickets, onChange, on
   }, [event.id]);
 
   const eventTickets = tickets.filter(t => t.eventId === event.id);
+  const isPast = eventHasEnded(event);
   const eventSales = eventTickets.filter(t => t.status !== 'void' && t.source !== 'cortesia' && t.paymentStatus !== 'refunded');
   const selectedBatch = event.batches.find(b => b.id === selectedBatchId) ?? event.batches[0];
   const selectedSoldOut = selectedBatch ? batchSoldOut(event, selectedBatch, eventTickets) : false;
@@ -84,7 +85,13 @@ export function AdminEventManager({ event, existingEvents, tickets, onChange, on
 
   function saveDetails(e: React.FormEvent) {
     e.preventDefault();
-    if (!details.title.trim() || !details.date || !details.time || !details.venue.trim()) return;
+    if (eventHasEnded(event)) { setDetailsError('Este evento ya terminó y está en el historial.'); return; }
+    if (!details.title.trim() || !details.date || !details.time || !details.endDate || !details.endTime || !details.venue.trim()) {
+      setDetailsError('Completá el inicio y el fin del evento.'); return;
+    }
+    if (!eventTimeRangeValid(details.date, details.time, details.endDate, details.endTime)) {
+      setDetailsError('La fecha y hora de fin deben ser posteriores al inicio del evento.'); return;
+    }
     const slug = slugifyEvent(details.slug);
     if (!slug) { setDetailsError('Ingresá una URL de evento válida.'); return; }
     if (existingEvents.some(item => item.id !== event.id && (item.slug || slugifyEvent(item.title)) === slug)) {
@@ -93,11 +100,13 @@ export function AdminEventManager({ event, existingEvents, tickets, onChange, on
     setDetailsError('');
     onChange({ ...event, title: details.title.trim(), subtitle: details.subtitle.trim(),
       description: details.description.trim(), slug, imageUrl: details.imageUrl.trim(), date: details.date,
-      time: details.time, venue: details.venue.trim(), city: details.city.trim() || 'Posadas, Misiones' });
+      time: details.time, endDate: details.endDate, endTime: details.endTime,
+      venue: details.venue.trim(), city: details.city.trim() || 'Posadas, Misiones' });
     setEditingEvent(false);
   }
 
   function startBatch(edit?: Batch) {
+    if (eventHasEnded(event)) { setStatusError('El evento ya terminó: los lotes quedaron en el historial.'); return; }
     if (edit && batchSoldOut(event, edit, eventTickets)) {
       setStatusError('Este lote quedó SOLD OUT. No se pueden modificar sectores, precios ni cupos.'); return;
     }
@@ -112,6 +121,7 @@ export function AdminEventManager({ event, existingEvents, tickets, onChange, on
 
   function saveBatch(e: React.FormEvent) {
     e.preventDefault();
+    if (eventHasEnded(event)) { setFormError('El evento ya terminó: no se pueden modificar sus lotes.'); return; }
     const current = event.batches.find(batch => batch.id === editingBatchId);
     if (current && batchSoldOut(event, current, eventTickets)) {
       setFormError('No se puede editar un lote después de SOLD OUT.'); return;
@@ -163,6 +173,7 @@ export function AdminEventManager({ event, existingEvents, tickets, onChange, on
 
   function addCapacity(e: React.FormEvent) {
     e.preventDefault();
+    if (eventHasEnded(event)) { setCapacityError('El evento ya terminó: no se pueden agregar ingresos.'); return; }
     if (!capacityTier) return;
     const batch = event.batches.find(row => row.id === capacityTier.batchId);
     if (!batch || batchSoldOut(event, batch, eventTickets)) {
@@ -184,6 +195,7 @@ export function AdminEventManager({ event, existingEvents, tickets, onChange, on
   }
 
   function setBatchStatus(id: string, status: Batch['status']) {
+    if (eventHasEnded(event)) { setStatusError('El evento ya terminó: los lotes están cerrados.'); return; }
     const batch = event.batches.find(b => b.id === id);
     if (!batch || batch.status === status) return;
     if (status === 'active' && event.status === 'closed') {
@@ -210,17 +222,22 @@ export function AdminEventManager({ event, existingEvents, tickets, onChange, on
   return <section className="adm-manager">
     <div className="adm-section-top">
       <div><span className="section-eyebrow">GESTIÓN DEL EVENTO</span><h2>{event.title}</h2>
-        <p><CalendarDays size={15}/> {dateLabel(event.date)} · {event.time} hs · {event.venue} · {event.status === 'closed' ? 'EVENTO CERRADO' : event.status === 'draft' ? 'BORRADOR' : 'PUBLICADO'}</p></div>
-      <button className="btn btn-secondary" onClick={() => setEditingEvent(v => !v)}><Pencil size={15}/> {editingEvent ? 'Cerrar edición' : 'Editar evento'}</button>
+        <p><CalendarDays size={15}/> {dateLabel(event.date)} · {event.time} hs → {event.endDate ? `${dateLabel(event.endDate)} · ${event.endTime} hs` : 'Fin sin definir'} · {event.venue} · {isPast ? 'EVENTO PASADO' : event.status === 'closed' ? 'EVENTO CERRADO' : event.status === 'draft' ? 'BORRADOR' : 'PUBLICADO'}</p></div>
+      {!isPast && <button className="btn btn-secondary" onClick={() => setEditingEvent(v => !v)}><Pencil size={15}/> {editingEvent ? 'Cerrar edición' : 'Editar evento'}</button>}
     </div>
 
-    {event.status === 'closed' && <div className="adm-event-closed-note"><CircleAlert size={19}/><strong>Evento cerrado.</strong> Las ventas online y por RR. PP. están detenidas para todos los lotes. El historial y los QR emitidos siguen disponibles.</div>}
+    {isPast && <div className="adm-event-closed-note"><CircleAlert size={19}/><strong>Evento pasado.</strong> Terminó el {dateLabel(event.endDate!)} a las {event.endTime} hs. Las ventas, emisiones y validaciones de QR están finalizadas. El historial y los QR emitidos siguen disponibles para consulta.</div>}
+    {!isPast && event.status === 'closed' && <div className="adm-event-closed-note"><CircleAlert size={19}/><strong>Evento cerrado manualmente.</strong> Las ventas online y por RR. PP. están detenidas para todos los lotes. El historial y los QR emitidos siguen disponibles.</div>}
+    {!isPast && !event.endDate && <div className="adm-event-closed-note"><CircleAlert size={19}/><strong>Falta configurar la fecha de fin.</strong> Este evento fue creado antes de agregar el cierre automático. Entrá en Editar evento para definirla.</div>}
 
     {editingEvent && <form className="panel adm-edit-details" onSubmit={saveDetails}>
       <div className="form-stack"><div className="form-two"><label>Nombre del evento<input required value={details.title} onChange={e => setDetails({ ...details, title: e.target.value })}/></label>
         <label>Descripción corta<input value={details.subtitle} onChange={e => setDetails({ ...details, subtitle: e.target.value })}/></label></div>
-        <div className="form-two"><label>Fecha<input required type="date" value={details.date} onChange={e => setDetails({ ...details, date: e.target.value })}/></label>
-          <label>Hora<input required type="time" value={details.time} onChange={e => setDetails({ ...details, time: e.target.value })}/></label></div>
+        <div className="form-two"><label>Fecha de inicio<input required type="date" value={details.date} onChange={e => setDetails({ ...details, date: e.target.value })}/></label>
+          <label>Hora de inicio<input required type="time" value={details.time} onChange={e => setDetails({ ...details, time: e.target.value })}/></label></div>
+        <div className="form-two"><label>Fecha de fin<input required type="date" min={details.date || undefined} value={details.endDate} onChange={e => setDetails({ ...details, endDate: e.target.value })}/></label>
+          <label>Hora de fin<input required type="time" value={details.endTime} onChange={e => setDetails({ ...details, endTime: e.target.value })}/></label></div>
+        <p className="adm-helper">Horario de Argentina. Al llegar el fin, se bloquearán las ventas y el evento se mostrará como pasado.</p>
         <label>Descripción del evento (opcional)<textarea rows={3} maxLength={1000} value={details.description} onChange={e => setDetails({ ...details, description: e.target.value })}/></label>
         <div className="form-two"><label>Lugar<input required value={details.venue} onChange={e => setDetails({ ...details, venue: e.target.value })}/></label>
           <label>Ciudad<input value={details.city} onChange={e => setDetails({ ...details, city: e.target.value })}/></label></div>
@@ -239,7 +256,7 @@ export function AdminEventManager({ event, existingEvents, tickets, onChange, on
 
     <div className="adm-section-top adm-lot-heading"><div><span className="section-eyebrow">PRECIOS Y DISPONIBILIDAD</span><h2>Lotes de entradas</h2>
       <p><Layers3 size={15}/> Cada lote define sus propios sectores, precios y cupos.</p></div>
-      <button className="btn btn-primary" onClick={() => startBatch()}><Plus size={16}/> Nuevo lote</button></div>
+      {!isPast && <button className="btn btn-primary" onClick={() => startBatch()}><Plus size={16}/> Nuevo lote</button>}</div>
     <div className="adm-manual-status"><span className="adm-manual-icon"><Check size={18}/></span><div>
       <strong>Control manual de lotes</strong>
       <p>{activeBatch ? <>Venta habilitada: <b>{activeBatch.name}</b>. Para pasar a otro lote, cerrá este y abrí el siguiente.</>
@@ -263,7 +280,7 @@ export function AdminEventManager({ event, existingEvents, tickets, onChange, on
     {selectedBatch && <div className="panel adm-batch-detail">
       <div className="panel-title"><div><h2>{selectedBatch.name} <span className={`pill pill-${selectedSoldOut ? 'red' : batchTone(selectedBatch.status)}`}>{selectedSoldOut ? 'SOLD OUT' : batchLabel(selectedBatch.status)}</span></h2>
         <p>Desglose de entradas y recaudación por sector</p></div>
-        <div className="adm-inline-actions">
+        {!isPast && <div className="adm-inline-actions">
           <button className="btn btn-secondary" disabled={selectedSoldOut} onClick={() => startBatch(selectedBatch)}><Pencil size={14}/> Editar lote</button>
           {!selectedSoldOut && selectedBatch.status !== 'active' && <button className="btn btn-primary" disabled={event.status === 'closed' || (!!activeBatch && activeBatch.id !== selectedBatch.id)}
             title={activeBatch ? `Primero cerrá ${activeBatch.name}` : 'Habilitar ventas de este lote'}
@@ -271,7 +288,7 @@ export function AdminEventManager({ event, existingEvents, tickets, onChange, on
           {!selectedSoldOut && selectedBatch.status === 'active' && <button className="btn btn-secondary" onClick={() => setPendingBatchAction({ id: selectedBatch.id, status: 'closed' })}><X size={14}/> Pausar ventas</button>}
           {selectedSoldOut && selectedBatch.status === 'active' && <button className="btn btn-secondary" onClick={() => setPendingBatchAction({ id: selectedBatch.id, status: 'closed' })}><X size={14}/> Cerrar lote agotado</button>}
           {selectedBatch.status !== 'sold_out' && <button className="btn btn-soldout" onClick={() => setPendingBatchAction({ id: selectedBatch.id, status: 'sold_out' })}><X size={14}/> Forzar SOLD OUT</button>}
-        </div></div>
+        </div>}</div>
       {selectedBatch.status !== 'active' && activeBatch && <p className="adm-manual-hint">Para abrir {selectedBatch.name}, primero cerrá las ventas de {activeBatch.name}. Esto no sucederá automáticamente.</p>}
       {statusError && <p className="form-error"><CircleAlert size={15}/>{statusError}</p>}
       <div className="table-scroll"><table className="data-table"><thead><tr><th>SECTOR</th><th>PRECIO</th><th>EMITIDAS / CUPO</th><th>COBRADO ONLINE*</th><th>INFORMADO POR PÚBLICOS</th><th>CORTESÍAS</th><th>DISPONIBILIDAD</th></tr></thead>
@@ -280,7 +297,7 @@ export function AdminEventManager({ event, existingEvents, tickets, onChange, on
           return <tr key={tier.id}><td><strong>{tier.name}</strong></td><td>{formatMoney(tier.price)}</td>
             <td><strong>{issued(rows)}</strong> / {tier.capacity}</td><td>{formatMoney(paidTotal(rows, 'approved'))}</td>
             <td>{formatMoney(paidTotal(rows, 'reported'))}</td><td>{rows.filter(t => t.source === 'cortesia' && t.status !== 'void').length}</td>
-            <td>{selectedSoldOut ? <span className="adm-soldout-lock">SOLD OUT · Bloqueado</span>
+            <td>{isPast ? <span className="adm-soldout-lock">Evento pasado</span> : selectedSoldOut ? <span className="adm-soldout-lock">SOLD OUT · Bloqueado</span>
               : <button className="adm-open-qr" onClick={() => { setCapacityTier(tier); setAdditionalCapacity('50'); setCapacityReason(''); setCapacityError(''); }}><Plus size={14}/> Sumar entradas</button>}</td></tr>;
         })}</tbody></table></div>
       {capacityHistory.length > 0 && <div className="adm-capacity-history"><strong>Historial de ajustes de cupo</strong>

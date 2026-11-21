@@ -42,6 +42,9 @@ export type EventItem = {
   slug?: string;
   date: string;
   time: string;
+  // Inicio = date/time. Fin obligatorio para eventos nuevos; opcional en datos anteriores.
+  endDate?: string;
+  endTime?: string;
   venue: string;
   city: string;
   status: 'published' | 'draft' | 'closed';
@@ -80,7 +83,7 @@ export const demoStaff: StaffMember[] = [
 export const demoEvents: EventItem[] = [
   {
     id: 'neon-night', title: 'NEON NIGHT', subtitle: 'Una noche fuera de lo común',
-    date: '2026-12-19', time: '23:00', venue: 'Espacio MCF', city: 'Posadas, Misiones',
+    date: '2026-12-19', time: '23:00', endDate: '2026-12-20', endTime: '05:00', venue: 'Espacio MCF', city: 'Posadas, Misiones',
     status: 'published', accent: '#ae84ff',
     batches: [
       { id: 'nn-early', name: 'Earlys', status: 'closed' },
@@ -99,7 +102,7 @@ export const demoEvents: EventItem[] = [
   },
   {
     id: 'sunset', title: 'SUNSET SESSION', subtitle: 'Música, atardecer y amigos',
-    date: '2027-01-10', time: '19:00', venue: 'Terraza del Río', city: 'Posadas, Misiones',
+    date: '2027-01-10', time: '19:00', endDate: '2027-01-11', endTime: '02:00', venue: 'Terraza del Río', city: 'Posadas, Misiones',
     status: 'published', accent: '#ffad76',
     batches: [{ id: 'ss-lote1', name: 'Lote 1', status: 'active' }],
     tiers: [
@@ -109,7 +112,7 @@ export const demoEvents: EventItem[] = [
   },
   {
     id: 'midnight', title: 'MIDNIGHT CLUB', subtitle: 'Próximamente',
-    date: '2027-02-14', time: '23:30', venue: 'Ubicación a confirmar', city: 'Posadas, Misiones',
+    date: '2027-02-14', time: '23:30', endDate: '2027-02-15', endTime: '05:00', venue: 'Ubicación a confirmar', city: 'Posadas, Misiones',
     status: 'draft', accent: '#89e4df',
     batches: [{ id: 'mc-lote1', name: 'Lote 1', status: 'active' }],
     tiers: [{ id: 'mc-general', batchId: 'mc-lote1', name: 'General', price: 20000, capacity: 350 }],
@@ -143,7 +146,32 @@ const initialTickets: Ticket[] = Array.from({ length: 24 }, (_, i) => {
 
 export const initialStore: Store = { events: demoEvents, tickets: initialTickets, staff: demoStaff };
 
+// Todos los horarios se interpretan en Misiones/Argentina, incluso si alguien abre el enlace desde otra zona horaria.
+const argentinaClock = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'America/Argentina/Buenos_Aires', year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+});
+
+export function eventTimeRangeValid(date: string, time: string, endDate?: string, endTime?: string): boolean {
+  return Boolean(date && time && endDate && endTime && `${endDate}T${endTime}` > `${date}T${time}`);
+}
+
+export function eventHasEnded(event: EventItem, now = new Date()): boolean {
+  if (!event.endDate || !event.endTime) return false;
+  const parts = Object.fromEntries(argentinaClock.formatToParts(now).map(part => [part.type, part.value]));
+  const current = `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
+  return current >= `${event.endDate}T${event.endTime}`;
+}
+
+export type EventDisplayStatus = EventItem['status'] | 'past';
+export const eventDisplayStatus = (event: EventItem): EventDisplayStatus =>
+  eventHasEnded(event) ? 'past' : event.status;
+
+export const eventCanIssueTickets = (event: EventItem): boolean =>
+  event.status === 'published' && !eventHasEnded(event);
+
 export function sellableTiers(event: EventItem): Tier[] {
+  if (!eventCanIssueTickets(event)) return [];
   const active = event.batches.find(batch => batch.status === 'active');
   return active ? event.tiers.filter(tier => tier.batchId === active.id) : [];
 }

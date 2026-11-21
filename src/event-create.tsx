@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CalendarDays, CircleAlert, Copy, ImagePlus, Layers3, Plus, Save, TicketCheck, X } from 'lucide-react';
-import { eventPublicUrl, makeId, slugifyEvent, type EventItem, type Tier } from './data';
+import { eventPublicUrl, eventTimeRangeValid, makeId, slugifyEvent, type EventItem, type Tier } from './data';
 
 type SectorForm = { id: string; name: string; price: string; capacity: string };
 type BatchForm = { id: string; name: string; sectors: SectorForm[] };
@@ -15,6 +15,8 @@ export function EventCreateForm({ existing, onCreate }: {
   const [description, setDescription] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('23:00');
+  const [endDate, setEndDate] = useState('');
+  const [endTime, setEndTime] = useState('05:00');
   const [venue, setVenue] = useState('');
   const [city, setCity] = useState('Posadas, Misiones');
   const [slugInput, setSlugInput] = useState('');
@@ -45,8 +47,11 @@ export function EventCreateForm({ existing, onCreate }: {
 
   function save(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim() || !date || !time || !venue.trim() || !slug) {
-      setError('Completá nombre, fecha, hora, lugar y URL del evento.'); return;
+    if (!title.trim() || !date || !time || !endDate || !endTime || !venue.trim() || !slug) {
+      setError('Completá nombre, inicio, fin, lugar y URL del evento.'); return;
+    }
+    if (!eventTimeRangeValid(date, time, endDate, endTime)) {
+      setError('La fecha y hora de fin deben ser posteriores al inicio del evento.'); return;
     }
     if (existing.some(event => (event.slug || slugifyEvent(event.title)) === slug)) {
       setError('La URL del evento ya está ocupada. Elegí otra.'); return;
@@ -63,7 +68,7 @@ export function EventCreateForm({ existing, onCreate }: {
       id: makeId(), batchId: batch.id, name: sector.name.trim(), price: Number(sector.price), capacity: Number(sector.capacity),
     })));
     onCreate({ id: makeId(), title: title.trim().toUpperCase(), subtitle: description.trim() || 'Evento MCF TICKETS',
-      description: description.trim(), date, time, venue: venue.trim(), city: city.trim() || 'Posadas, Misiones',
+      description: description.trim(), date, time, endDate, endTime, venue: venue.trim(), city: city.trim() || 'Posadas, Misiones',
       imageUrl, slug, status: 'draft', accent: '#9774ec',
       batches: batches.map(batch => ({ id: batch.id, name: batch.name.trim(), status: 'draft' as const })),
       tiers, capacityChanges: [], batchStatusChanges: [] });
@@ -75,8 +80,13 @@ export function EventCreateForm({ existing, onCreate }: {
       <div className="form-stack">
         <label>Nombre del evento *<input required maxLength={120} placeholder="Ej. CLUB DEL FUNK" value={title} onChange={e => setTitle(e.target.value)}/></label>
         <label>Descripción (opcional)<textarea rows={3} maxLength={1000} placeholder="Contá de qué se trata el evento" value={description} onChange={e => setDescription(e.target.value)}/></label>
-        <div className="form-two"><label>Fecha *<input type="date" required value={date} onChange={e => setDate(e.target.value)}/></label>
-          <label>Hora *<input type="time" required value={time} onChange={e => setTime(e.target.value)}/></label></div>
+        <div className="event-period-label">INICIO DEL EVENTO</div>
+        <div className="form-two"><label>Fecha de inicio *<input type="date" required value={date} onChange={e => setDate(e.target.value)}/></label>
+          <label>Hora de inicio *<input type="time" required value={time} onChange={e => setTime(e.target.value)}/></label></div>
+        <div className="event-period-label">FINALIZACIÓN DEL EVENTO</div>
+        <div className="form-two"><label>Fecha de fin *<input type="date" required value={endDate} min={date || undefined} onChange={e => setEndDate(e.target.value)}/></label>
+          <label>Hora de fin *<input type="time" required value={endTime} onChange={e => setEndTime(e.target.value)}/></label></div>
+        <p className="event-period-note"><CircleAlert size={15}/> Al llegar la fecha y hora de fin (horario de Argentina), el evento pasará automáticamente a <strong>Evento pasado</strong> y dejará de admitir ventas y emisiones. Podés elegir el día siguiente si la fiesta termina de madrugada.</p>
         <div className="form-two"><label>Lugar *<input required placeholder="Nombre del lugar" value={venue} onChange={e => setVenue(e.target.value)}/></label>
           <label>Ciudad<input value={city} onChange={e => setCity(e.target.value)}/></label></div>
       </div>

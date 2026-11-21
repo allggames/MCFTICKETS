@@ -280,3 +280,9 @@
 .permission-bulk-stats strong{font:700 20px 'Space Grotesk',sans-serif;color:#d8c8ff}
 @media(max-width:850px){.permission-users-tools{width:100%;justify-content:stretch}.permission-users-tools .permission-search{flex:1;max-width:none;min-width:170px}}
 @media(max-width:480px){.permission-users-tools{flex-direction:column;align-items:stretch}.permission-users-tools .permission-search,.permission-users-tools .adm-open-qr{width:100%}.permission-bulk-stats{grid-template-columns:1fr}.permission-modal .modal-footer{flex-wrap:wrap}}
+
+/* Fechas de inicio y finalización del evento. */
+.event-period-label{padding-top:8px;color:#c7b4ff;font-size:10px;font-weight:800;letter-spacing:1.1px}
+.event-period-note{display:flex;align-items:flex-start;gap:9px;margin:0;padding:12px 13px;border:1px solid #5b4c76;border-radius:9px;background:#28233d;color:#b8aecf;font-size:11px;line-height:1.65}
+.event-period-note svg{flex:none;color:#b49af6;margin-top:2px}
+.event-period-note strong{color:#e7d9ff}

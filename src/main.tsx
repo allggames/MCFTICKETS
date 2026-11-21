@@ -11,8 +11,9 @@ import {
   Wallet, X, XCircle,
 } from 'lucide-react';
 import {
-  dateLabel, demoStaff, eventPublicUrl, formatMoney, loadStore, makeDemoTicket, sellableTiers,
-  type EventItem, type StaffMember, type Store, type Ticket,
+  dateLabel, demoStaff, eventCanIssueTickets, eventDisplayStatus, eventHasEnded,
+  eventPublicUrl, formatMoney, loadStore, makeDemoTicket, sellableTiers,
+  type EventDisplayStatus, type EventItem, type StaffMember, type Store, type Ticket,
 } from './data';
 import { AdminEventManager } from './admin-management';
 import { EventCreateForm } from './event-create';
@@ -111,17 +112,21 @@ function EventTable({ events, tickets, selectedId, onSelect, onPublish, onClose 
   events: EventItem[]; tickets: Ticket[]; selectedId: string;
   onSelect: (id: string) => void; onPublish: (id: string) => void; onClose: (id: string) => void;
 }) {
-  return <div className="table-scroll"><table className="data-table"><thead><tr><th>EVENTO</th><th>FECHA</th><th>TICKETS VENDIDOS</th><th>INGRESOS REGISTRADOS*</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody>
+  return <div className="table-scroll"><table className="data-table"><thead><tr><th>EVENTO</th><th>INICIO</th><th>FIN</th><th>TICKETS VENDIDOS</th><th>INGRESOS REGISTRADOS*</th><th>ESTADO</th><th>ACCIONES</th></tr></thead><tbody>
     {events.map(event => {
       const rows = tickets.filter(t => t.eventId === event.id);
       const sales = rows.filter(t => t.status !== 'void' && t.source !== 'cortesia' && t.paymentStatus !== 'refunded');
       const money = sales.reduce((n, t) => n + t.price, 0);
+      const displayStatus = eventDisplayStatus(event);
       return <tr key={event.id} className={selectedId === event.id ? 'adm-selected-event' : ''}><td><button className="adm-event-name" onClick={() => onSelect(event.id)}><div className="table-event"><span className="event-initial" style={{ background: event.accent }}>{event.title.substring(0, 1)}</span><span><strong>{event.title}</strong><small>{event.venue}</small></span></div></button></td>
-        <td>{dateLabel(event.date)}</td><td><strong>{sales.length}</strong><span className="subtle"> / {event.tiers.reduce((n, t) => n + t.capacity, 0)} cupos</span></td><td className="money-cell">{formatMoney(money)}</td><td><Pill tone={event.status === 'published' ? 'green' : event.status === 'draft' ? 'yellow' : 'neutral'}>{event.status === 'published' ? 'Publicado' : event.status === 'draft' ? 'Borrador' : 'Cerrado'}</Pill></td>
+        <td>{dateLabel(event.date)}<small className="table-secondary">{event.time} hs</small></td>
+        <td>{event.endDate ? dateLabel(event.endDate) : 'Sin definir'}{event.endTime && <small className="table-secondary">{event.endTime} hs</small>}</td>
+        <td><strong>{sales.length}</strong><span className="subtle"> / {event.tiers.reduce((n, t) => n + t.capacity, 0)} cupos</span></td><td className="money-cell">{formatMoney(money)}</td>
+        <td><Pill tone={displayStatus === 'published' ? 'green' : displayStatus === 'draft' ? 'yellow' : 'neutral'}>{displayStatus === 'past' ? 'Evento pasado' : displayStatus === 'published' ? 'Publicado' : displayStatus === 'draft' ? 'Borrador' : 'Cerrado'}</Pill></td>
         <td><div className="adm-event-actions"><button className="adm-open-qr" onClick={() => onSelect(event.id)}>Gestionar</button>
-          {event.status === 'draft' && <button className="adm-event-publish" onClick={() => onPublish(event.id)}>Publicar</button>}
-          {event.status === 'published' && <button className="adm-event-close" onClick={() => onClose(event.id)}>Cerrar evento</button>}
-          {event.status === 'closed' && <span className="adm-history-label">En historial</span>}
+          {displayStatus === 'draft' && <button className="adm-event-publish" onClick={() => onPublish(event.id)}>Publicar</button>}
+          {displayStatus === 'published' && <button className="adm-event-close" onClick={() => onClose(event.id)}>Cerrar evento</button>}
+          {(displayStatus === 'closed' || displayStatus === 'past') && <span className="adm-history-label">En historial</span>}
           <button className="adm-event-copy" title="Copiar URL pública" aria-label={`Copiar URL de ${event.title}`} onClick={() => navigator.clipboard?.writeText(eventPublicUrl(event))}><Copy size={15}/></button>
         </div></td></tr>;
     })}
@@ -134,14 +139,14 @@ function AdminPage({ store, updateStore }: { store: Store; updateStore: (next: S
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [closeConfirmId, setCloseConfirmId] = useState<string | null>(null);
   const [q, setQ] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | EventItem['status']>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | EventDisplayStatus>('all');
   const revenue = store.tickets.filter(t => t.status !== 'void' && t.paymentStatus === 'approved').reduce((sum, ticket) => sum + ticket.price, 0);
   const reported = store.tickets.filter(t => t.status !== 'void' && t.paymentStatus === 'reported').reduce((sum, ticket) => sum + ticket.price, 0);
   const soldTickets = store.tickets.filter(ticket => ticket.status !== 'void' && ticket.source !== 'cortesia' && ticket.paymentStatus !== 'refunded');
   const checked = store.tickets.filter(ticket => ticket.status === 'used').length;
   const selectedEvent = store.events.find(event => event.id === selectedEventId) ?? store.events[0];
   const visibleEvents = store.events.filter(event => event.title.toLowerCase().includes(q.toLowerCase()) &&
-    (statusFilter === 'all' || event.status === statusFilter)).slice().sort((a, b) => b.date.localeCompare(a.date));
+    (statusFilter === 'all' || eventDisplayStatus(event) === statusFilter)).slice().sort((a, b) => b.date.localeCompare(a.date));
   const bySource = ['online', 'publico', 'cortesia'].map(source => ({ source, count: store.tickets.filter(ticket => ticket.source === source).length }));
   const maxSource = Math.max(1, ...bySource.map(source => source.count));
 
@@ -152,11 +157,11 @@ function AdminPage({ store, updateStore }: { store: Store; updateStore: (next: S
     setView('mine');
   }
   function publishEvent(id: string) {
-    updateStore({ ...store, events: store.events.map(event => event.id === id && event.status === 'draft'
+    updateStore({ ...store, events: store.events.map(event => event.id === id && event.status === 'draft' && !eventHasEnded(event)
       ? { ...event, status: 'published' as const } : event) });
   }
   function closeEvent(id: string) {
-    updateStore({ ...store, events: store.events.map(event => event.id === id && event.status === 'published'
+    updateStore({ ...store, events: store.events.map(event => event.id === id && event.status === 'published' && !eventHasEnded(event)
       ? { ...event, status: 'closed' as const } : event) });
     setCloseConfirmId(null);
   }
@@ -171,18 +176,18 @@ function AdminPage({ store, updateStore }: { store: Store; updateStore: (next: S
     </div>
     <div className="demo-note"><CircleAlert size={17}/><span>Datos de demostración. Todavía no se cobran pagos ni se envían correos reales.</span></div>
     {view === 'create' ? <EventCreateForm existing={store.events} onCreate={createEvent}/> : <>
-    <div className="metrics-grid"><Metric label="Eventos totales" value={String(store.events.length)} icon={CalendarDays} annotation={`${store.events.filter(e => e.status === 'closed').length} en historial cerrado`}/>
+    <div className="metrics-grid"><Metric label="Eventos totales" value={String(store.events.length)} icon={CalendarDays} annotation={`${store.events.filter(e => eventDisplayStatus(e) === 'past').length} eventos pasados`}/>
       <Metric label="Tickets vendidos" value={String(soldTickets.length)} icon={TicketIcon} annotation="No incluye cortesías" color="blue"/>
       <Metric label="Ingresos registrados*" value={formatMoney(revenue + reported)} icon={Wallet} annotation="Online simulados + públicos informados" color="green"/>
-      <Metric label="Eventos publicados" value={String(store.events.filter(e => e.status === 'published').length)} icon={TicketCheck} annotation="Disponibles para compradores" color="orange"/></div>
+      <Metric label="Eventos publicados" value={String(store.events.filter(eventCanIssueTickets).length)} icon={TicketCheck} annotation="Disponibles para compradores" color="orange"/></div>
     <div className="dashboard-panels"><section className="panel revenue-panel"><div className="panel-title"><div><h2>Resumen de emisiones</h2><p>Origen de las entradas generadas</p></div><span className="tiny-pill">Todos los eventos <ChevronDown size={13}/></span></div>
       <div className="source-bars">{bySource.map(({ source, count }) => <div className="bar-row" key={source}><span>{source === 'online' ? 'Venta online' : source === 'publico' ? 'Públicos' : 'Cortesías'}</span><div className="bar-track"><div className={`bar-fill bar-${source}`} style={{ width: `${count / maxSource * 100}%` }}/></div><strong>{count}</strong></div>)}</div>
       <div className="panel-total"><span>Total de ventas registradas (demo)</span><strong>{formatMoney(revenue + reported)}</strong></div>
     </section><section className="panel insights-panel"><div className="panel-title"><div><h2>Estado de accesos</h2><p>Seguimiento de QR en tiempo real*</p></div><Activity size={21} color="#a88afd"/></div><div className="donut-row"><div className="donut" style={{ '--used': `${(checked / Math.max(1, store.tickets.length)) * 100}%` } as React.CSSProperties}><div><strong>{Math.round((checked / Math.max(1, store.tickets.length)) * 100)}%</strong><small>utilizados</small></div></div><div className="donut-legend"><span><i className="legend-purple"/>Por ingresar <strong>{store.tickets.filter(t => t.status === 'valid').length}</strong></span><span><i className="legend-green"/>Ingresaron <strong>{checked}</strong></span><span><i className="legend-muted"/>Anulados <strong>{store.tickets.filter(t => t.status === 'void').length}</strong></span></div></div><small className="insights-note">* En la demo, los cambios se guardan en este navegador.</small></section></div>
-    <section className="panel events-panel"><div className="panel-title table-title"><div><h2>Mis eventos · Historial</h2><p>Incluye próximos eventos, borradores y fiestas cerradas. Seleccioná uno para ver sus lotes y números.</p></div>
+    <section className="panel events-panel"><div className="panel-title table-title"><div><h2>Mis eventos · Historial</h2><p>Incluye próximos eventos, borradores y eventos pasados. Seleccioná uno para ver sus lotes y números.</p></div>
       <div className="event-history-filters"><label className="search-box"><Search size={17}/><input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar evento" aria-label="Buscar evento"/></label>
       <select aria-label="Filtrar eventos por estado" value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)}>
-        <option value="all">Todos los eventos</option><option value="published">Publicados</option><option value="draft">Borradores</option><option value="closed">Cerrados</option></select></div></div>
+        <option value="all">Todos los eventos</option><option value="published">Publicados</option><option value="draft">Borradores</option><option value="closed">Cerrados manualmente</option><option value="past">Eventos pasados</option></select></div></div>
       <EventTable events={visibleEvents} tickets={store.tickets} selectedId={selectedEvent?.id ?? ''}
         onSelect={setSelectedEventId} onPublish={publishEvent} onClose={setCloseConfirmId}/></section>
     {selectedEvent && <AdminEventManager key={selectedEvent.id} event={selectedEvent} existingEvents={store.events} tickets={store.tickets}
@@ -238,7 +243,7 @@ function EmailReceiptDialog({ receipt, event, source, onClose }: {
 }
 
 function ShopPage({ store, addTicket }: { store: Store; addTicket: (ticket: Ticket) => void }) {
-  const published = store.events.filter(event => event.status === 'published');
+  const published = store.events.filter(eventCanIssueTickets);
   const fromHash = () => {
     const slug = decodeURIComponent(window.location.hash.split('/')[2] ?? '');
     return published.find(event => (event.slug || event.id) === slug)?.id ?? null;
@@ -264,7 +269,7 @@ function ShopPage({ store, addTicket }: { store: Store; addTicket: (ticket: Tick
   function backToEvents() { setSelected(null); setTicket(null); window.location.hash = '#/eventos'; }
   function placeOrder(e: React.FormEvent) {
     e.preventDefault();
-    if (!event || !tier || !name.trim() || !email.includes('@')) return;
+    if (!event || !eventCanIssueTickets(event) || !tier || !name.trim() || !email.includes('@')) return;
     if (store.tickets.filter(t => t.tierId === tier.id && t.status !== 'void').length >= tier.capacity) return;
     const newTicket = makeDemoTicket(event.id, tier.id, name.trim(), email.trim(), 'online', '', tier.price);
     addTicket(newTicket);
@@ -280,7 +285,7 @@ function ShopPage({ store, addTicket }: { store: Store; addTicket: (ticket: Tick
 
 function PublicPage({ store, user, addTicket }: { store: Store; user: StaffMember | null; addTicket: (ticket: Ticket) => void }) {
   const [eventId, setEventId] = useState('');
-  const allowedEvents = store.events.filter(e => e.status === 'published' && canSellEvent(user, e.id));
+  const allowedEvents = store.events.filter(e => eventCanIssueTickets(e) && canSellEvent(user, e.id));
   const event = allowedEvents.find(e => e.id === eventId) ?? allowedEvents[0];
   const activeTiers = event ? sellableTiers(event) : [];
   const [tierId, setTierId] = useState('');
@@ -297,7 +302,7 @@ function PublicPage({ store, user, addTicket }: { store: Store; user: StaffMembe
   function changeEvent(id: string) { setEventId(id); setTierId(''); setGenerated(null); }
   function generate(e: React.FormEvent) {
     e.preventDefault();
-    if (!event || !tier || !canSellEvent(user, event.id) || !holder.trim() || !email.includes('@')) return;
+    if (!event || !eventCanIssueTickets(event) || !tier || !canSellEvent(user, event.id) || !holder.trim() || !email.includes('@')) return;
     if (store.tickets.filter(t => t.tierId === tier.id && t.status !== 'void').length >= tier.capacity) return;
     // El permiso se verifica al emitir, no solamente al mostrar el botón.
     const authorizedKind = canIssueInvitation(user, event.id) ? issueKind : 'publico';
@@ -360,28 +365,30 @@ function PublicPage({ store, user, addTicket }: { store: Store; user: StaffMembe
   </section>;
 }
 
-type ScanResult = { status: 'valid' | 'used' | 'invalid' | 'wrong-event'; ticket?: Ticket; event?: EventItem };
+type ScanResult = { status: 'valid' | 'used' | 'invalid' | 'wrong-event' | 'past-event'; ticket?: Ticket; event?: EventItem };
 
 function ScannerPage({ store, redeem }: { store: Store; redeem: (token: string, eventId: string) => ScanResult }) {
-  const [eventId, setEventId] = useState(store.events[0]?.id ?? '');
+  const [eventId, setEventId] = useState(store.events.find(e => e.status !== 'closed' && !eventHasEnded(e))?.id ?? '');
   const [input, setInput] = useState('');
   const [result, setResult] = useState<ScanResult | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [cameraError, setCameraError] = useState('');
   const scannerRef = useRef<import('html5-qrcode').Html5Qrcode | null>(null);
   const callbackRef = useRef(redeem);
-  const selectedEvent = store.events.find(e=>e.id===eventId);
+  const scanEvents = store.events.filter(e => e.status !== 'closed' && !eventHasEnded(e));
+  const selectedEvent = scanEvents.find(e => e.id === eventId) ?? scanEvents[0];
   useEffect(()=>{callbackRef.current=redeem;},[redeem]);
   useEffect(() => { return () => { const scanner = scannerRef.current; if (scanner?.isScanning) void scanner.stop().catch(()=>{}).finally(()=>{ try { scanner.clear(); } catch { /* scanner already closed */ } }); }; }, []);
   async function openCamera() {
     if (cameraOpen) return;
+    if (!selectedEvent || eventHasEnded(selectedEvent)) { setCameraError('No hay un evento vigente para validar entradas.'); return; }
     setCameraError('');
     try {
       const { Html5Qrcode } = await import('html5-qrcode');
       const scanner = new Html5Qrcode('qr-camera', { verbose: false });
       scannerRef.current = scanner;
       await scanner.start({ facingMode: 'environment' }, { fps: 8, qrbox: { width: 220, height: 220 } },
-        decoded => { setResult(callbackRef.current(decoded, eventId)); }, () => {});
+        decoded => { setResult(callbackRef.current(decoded, selectedEvent.id)); }, () => {});
       setCameraOpen(true);
     } catch {
       setCameraError('No se pudo iniciar la cámara. Verificá los permisos y que estés usando HTTPS.');
@@ -395,17 +402,18 @@ function ScannerPage({ store, redeem }: { store: Store; redeem: (token: string, 
     scannerRef.current = null;
     setCameraOpen(false);
   }
-  function testInput(e: React.FormEvent) { e.preventDefault(); setResult(redeem(input.trim(), eventId)); setInput(''); }
+  function testInput(e: React.FormEvent) { e.preventDefault(); if (!selectedEvent) return; setResult(redeem(input.trim(), selectedEvent.id)); setInput(''); }
   const count = store.tickets.filter(t=>t.eventId===eventId && t.status==='used').length;
   return <section className="page-content"><div className="page-heading"><div><div className="section-eyebrow">CONTROL DE ACCESO <span className="eyebrow-line"/></div><h1>Escaneá. <span>Validá. Ingresá.</span></h1><p>Validación de códigos QR para el personal de puerta.</p></div><Pill tone="green"><span className="status-dot"/> Lector disponible</Pill></div><div className="demo-note"><CircleAlert size={17}/><span>El lector valida únicamente los QR de esta demo y desde este navegador. La verificación entre dispositivos se activará con Supabase.</span></div>
-    <div className="scanner-layout"><div className="panel scanner-main"><div className="panel-title"><div><h2><QrCode size={21}/> Lector de entradas</h2><p>Seleccioná el evento antes de escanear</p></div></div><label className="scanner-select">Evento activo<select value={eventId} onChange={e=>{setEventId(e.target.value);setResult(null);if(cameraOpen)void closeCamera();}}>{store.events.filter(e=>e.status!=='closed').map(e=><option key={e.id} value={e.id}>{e.title}</option>)}</select></label><div className={`scanner-viewport ${cameraOpen?'scanner-camera-on':''}`}><div id="qr-camera"/><div className="scan-placeholder" style={{display:cameraOpen?'none':undefined}}><div className="scan-frame"><span/><span/><span/><span/><QrCode size={75} strokeWidth={1.15}/></div><strong>Listo para escanear</strong><small>Usá la cámara de tu celular o ingresá un código</small></div></div><Button className="full-width" onClick={()=>void(cameraOpen?closeCamera():openCamera())}>{cameraOpen?<><X size={18}/> Detener cámara</>:<><Smartphone size={18}/> Activar cámara</>}</Button>{cameraError && <p className="form-error"><CircleAlert size={16}/>{cameraError}</p>}<div className="scanner-divider"><span/> O INGRESÁ EL CÓDIGO <span/></div><form className="manual-scan" onSubmit={testInput}><input value={input} onChange={e=>setInput(e.target.value)} placeholder="MCF:DEMO:..." aria-label="Código QR" required/><Button type="submit"><Check size={18}/> Validar</Button></form></div>
+    <div className="scanner-layout"><div className="panel scanner-main"><div className="panel-title"><div><h2><QrCode size={21}/> Lector de entradas</h2><p>Seleccioná el evento antes de escanear</p></div></div><label className="scanner-select">Evento activo<select value={selectedEvent?.id ?? ''} disabled={!scanEvents.length} onChange={e=>{setEventId(e.target.value);setResult(null);if(cameraOpen)void closeCamera();}}>{scanEvents.map(e=><option key={e.id} value={e.id}>{e.title}</option>)}</select></label>{!scanEvents.length && <p className="adm-helper">No hay eventos vigentes para validar QR.</p>}<div className={`scanner-viewport ${cameraOpen?'scanner-camera-on':''}`}><div id="qr-camera"/><div className="scan-placeholder" style={{display:cameraOpen?'none':undefined}}><div className="scan-frame"><span/><span/><span/><span/><QrCode size={75} strokeWidth={1.15}/></div><strong>Listo para escanear</strong><small>Usá la cámara de tu celular o ingresá un código</small></div></div><Button className="full-width" disabled={!cameraOpen && !selectedEvent} onClick={()=>void(cameraOpen?closeCamera():openCamera())}>{cameraOpen?<><X size={18}/> Detener cámara</>:<><Smartphone size={18}/> Activar cámara</>}</Button>{cameraError && <p className="form-error"><CircleAlert size={16}/>{cameraError}</p>}<div className="scanner-divider"><span/> O INGRESÁ EL CÓDIGO <span/></div><form className="manual-scan" onSubmit={testInput}><input value={input} onChange={e=>setInput(e.target.value)} placeholder="MCF:DEMO:..." aria-label="Código QR" disabled={!selectedEvent} required/><Button type="submit" disabled={!selectedEvent}><Check size={18}/> Validar</Button></form></div>
       <aside className="scan-aside"><div className="panel scanner-event"><div className="panel-title"><div><h2>Evento seleccionado</h2><p>Información de la puerta</p></div></div>{selectedEvent && <><EventArtwork compact event={selectedEvent}/><h3>{selectedEvent.title}</h3><div className="scan-detail"><CalendarDays size={16}/>{dateLabel(selectedEvent.date)}</div><div className="scan-detail"><Clock3 size={16}/>{selectedEvent.time} hs</div></>}<div className="scan-counter"><span><CheckCircle2 size={17}/> Ingresos registrados</span><strong>{count}</strong></div></div><div className="panel scanner-tips"><ShieldCheck size={22}/><h3>Verificación segura</h3><p>Los QR válidos se utilizan una sola vez. Las entradas repetidas o de otro evento son rechazadas.</p></div></aside></div>
-    {result && <div className="scan-result-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setResult(null);}}><div className={`scan-result scan-${result.status}`}><button className="result-close" onClick={()=>setResult(null)}><X size={21}/></button><div className="result-icon">{result.status==='valid'?<CheckCircle2 size={51}/>:result.status==='used'?<CircleAlert size={51}/>:<XCircle size={51}/>}</div><h2>{result.status==='valid'?'¡ACCESO PERMITIDO!':result.status==='used'?'ENTRADA YA UTILIZADA':result.status==='wrong-event'?'EVENTO INCORRECTO':'QR NO VÁLIDO'}</h2><p>{result.status==='valid'?'El ingreso quedó registrado en esta demo.':result.status==='used'?'Este código ya fue escaneado anteriormente.':result.status==='wrong-event'?'La entrada pertenece a otro evento.':'No se encontró una entrada válida.'}</p>{result.ticket&&<div className="result-ticket"><span>TITULAR</span><strong>{result.ticket.holder}</strong><span>SECTOR</span><strong>{result.event?.tiers.find(t=>t.id===result.ticket?.tierId)?.name}</strong></div>}<Button onClick={()=>setResult(null)}>Continuar escaneando <ArrowRight size={17}/></Button></div></div>}</section>;
+    {result && <div className="scan-result-overlay" onMouseDown={e=>{if(e.target===e.currentTarget)setResult(null);}}><div className={`scan-result scan-${result.status}`}><button className="result-close" onClick={()=>setResult(null)}><X size={21}/></button><div className="result-icon">{result.status==='valid'?<CheckCircle2 size={51}/>:result.status==='used'?<CircleAlert size={51}/>:<XCircle size={51}/>}</div><h2>{result.status==='valid'?'¡ACCESO PERMITIDO!':result.status==='used'?'ENTRADA YA UTILIZADA':result.status==='past-event'?'EVENTO FINALIZADO':result.status==='wrong-event'?'EVENTO INCORRECTO':'QR NO VÁLIDO'}</h2><p>{result.status==='valid'?'El ingreso quedó registrado en esta demo.':result.status==='used'?'Este código ya fue escaneado anteriormente.':result.status==='past-event'?'El evento ya pasó y no admite nuevos ingresos.':result.status==='wrong-event'?'La entrada pertenece a otro evento.':'No se encontró una entrada válida.'}</p>{result.ticket&&<div className="result-ticket"><span>TITULAR</span><strong>{result.ticket.holder}</strong><span>SECTOR</span><strong>{result.event?.tiers.find(t=>t.id===result.ticket?.tierId)?.name}</strong></div>}<Button onClick={()=>setResult(null)}>Continuar escaneando <ArrowRight size={17}/></Button></div></div>}</section>;
 }
 
 function App() {
   const [store, setStore] = useState<Store>(loadStore);
   const storeRef = useRef(store);
+  const [, refreshClock] = useState(0);
   const [page, setPage] = useState<Page>(getPage);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [previewId, setPreviewId] = useState(() => sessionStorage.getItem('mcf_demo_profile') || 'demo-admin');
@@ -420,6 +428,13 @@ function App() {
   const demoUser = previewId === 'guest' ? null : staff.find(member => member.id === previewId) ?? null;
   const currentUser = authMode === 'real' ? liveMember : demoUser;
   useEffect(()=>{storeRef.current=store;localStorage.setItem('mcf_tickets_demo_v1',JSON.stringify(store));},[store]);
+  // Recalcular el cierre automático mientras la pantalla está abierta y al volver a la pestaña.
+  useEffect(() => {
+    const checkDeadline = () => refreshClock(value => value + 1);
+    const timer = window.setInterval(checkDeadline, 15_000);
+    window.addEventListener('focus', checkDeadline);
+    return () => { window.clearInterval(timer); window.removeEventListener('focus', checkDeadline); };
+  }, []);
   useEffect(()=>{const sync=()=>setPage(getPage());window.addEventListener('hashchange',sync);return()=>window.removeEventListener('hashchange',sync);},[]);
   useEffect(() => {
     if (!supabase) { setAuthReady(true); return; }
@@ -470,6 +485,7 @@ function App() {
     const ticket=storeRef.current.tickets.find(t=>t.token===token);
     if(!ticket||ticket.status==='void')return {status:'invalid'};
     const event=storeRef.current.events.find(e=>e.id===ticket.eventId);
+    if(event && eventHasEnded(event))return {status:'past-event',event};
     if(ticket.eventId!==eventId)return {status:'wrong-event',ticket,event};
     if(ticket.status==='used')return {status:'used',ticket,event};
     const next={...ticket,status:'used' as const,usedAt:new Date().toISOString()};
@@ -477,7 +493,13 @@ function App() {
     storeRef.current=updated;setStore(updated);
     return {status:'valid',ticket:next,event};
   };
-  const addTicket=(ticket:Ticket)=>{setStore(current=>({...current,tickets:[...current.tickets,ticket]}));};
+  const addTicket=(ticket:Ticket)=>{setStore(current=>{
+    const event = current.events.find(row => row.id === ticket.eventId);
+    const tier = event?.tiers.find(row => row.id === ticket.tierId);
+    if (!event || !tier || !eventCanIssueTickets(event) || !sellableTiers(event).some(row => row.id === tier.id)) return current;
+    if (current.tickets.filter(row => row.tierId === tier.id && row.status !== 'void').length >= tier.capacity) return current;
+    return {...current,tickets:[...current.tickets,ticket]};
+  });};
   const pageNode = {
     admin:<AdminPage store={store} updateStore={setStore}/>,
     eventos:<ShopPage store={store} addTicket={addTicket}/>,
