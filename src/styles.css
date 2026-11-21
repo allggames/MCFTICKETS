@@ -199,3 +199,20 @@
 .live-quota-edit input{max-width:95px;min-width:75px;background:#232439;color:#eeeafb;border:1px solid #47405f;border-radius:8px;padding:9px 10px}
 .live-quota-edit .btn{padding:9px 11px}
 @media(max-width:720px){.auth-page{padding-top:30px}.auth-card{padding:25px 20px}.live-admin-notice{flex-wrap:wrap}.live-admin-notice .btn{width:100%}}
+
+/* Ficha individual de RR. PP. en el administrador de demostración */
+.permission-detail-modal{width:min(100%,740px);max-height:min(88vh,900px);overflow-y:auto}
+.permission-detail-modal .modal-header{margin-bottom:18px}
+.permission-detail-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.permission-detail-summary>span{display:flex;align-items:center;gap:10px;background:#252439;border:1px solid #444057;border-radius:10px;padding:13px 15px;color:#b7b4cc;font-size:11px}
+.permission-detail-summary strong{color:#d3c0ff;font:700 23px 'Space Grotesk',sans-serif}
+.permission-detail-intro{color:#a5a3bc;font-size:12px;line-height:1.65;margin:19px 0 14px}
+.permission-detail-list{display:flex;flex-direction:column;gap:8px}
+.permission-detail-event{display:grid;grid-template-columns:minmax(0,1fr) 112px 112px;align-items:center;gap:14px;background:#222238;border:1px solid #3c3a56;border-radius:10px;padding:13px 15px}
+.permission-detail-event-name{display:flex;flex-direction:column;gap:4px;min-width:0}
+.permission-detail-event-name strong{font:700 13px 'Space Grotesk',sans-serif;overflow-wrap:anywhere}
+.permission-detail-event-name span{color:#9290af;font-size:10px}
+.permission-detail-event .permission-check{font-size:11px}
+.permission-detail-note{margin-top:15px;border-radius:9px}
+.permission-detail-modal .modal-footer{margin-top:15px}
+@media(max-width:600px){.permission-detail-modal{padding:20px}.permission-detail-event{grid-template-columns:minmax(0,1fr) 76px 76px;gap:8px;padding:11px}.permission-detail-event .permission-check{font-size:10px;gap:5px}.permission-detail-event .permission-check input{width:14px;height:14px}.permission-detail-summary>span{padding:11px;gap:7px;font-size:10px}}

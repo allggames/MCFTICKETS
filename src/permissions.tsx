@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, CircleAlert, Eye, LockKeyhole, Plus, ShieldCheck, UserCheck, UsersRound, X } from 'lucide-react';
+import { Check, CircleAlert, Eye, LockKeyhole, Plus, Settings2, ShieldCheck, UserCheck, UsersRound, X } from 'lucide-react';
 import { dateLabel, makeId, type EventItem, type StaffMember, type StaffRole } from './data';
 
 export type WorkspacePage = 'admin' | 'eventos' | 'publicos' | 'scanner' | 'permisos';
@@ -38,6 +38,7 @@ export function PermissionsPage({ staff, events, onChange, onPreview }: {
   const [search, setSearch] = useState('');
   const [selectedEventId, setSelectedEventId] = useState(events[0]?.id ?? '');
   const [bulkAction, setBulkAction] = useState<'enable' | 'disable' | null>(null);
+  const [detailMemberId, setDetailMemberId] = useState<string | null>(null);
 
   const visible = staff.filter(member => `${member.name} ${member.email}`.toLowerCase().includes(search.toLowerCase()));
   const selectedEvent = events.find(event => event.id === selectedEventId) ?? events[0];
@@ -45,6 +46,7 @@ export function PermissionsPage({ staff, events, onChange, onPreview }: {
   const filteredPromoters = visible.filter(member => member.role === 'promoter');
   const enabledCount = selectedEvent ? promoters.filter(member => member.active && member.allowedEventIds.includes(selectedEvent.id)).length : 0;
   const activeAdmins = staff.filter(member => member.role === 'admin' && member.active);
+  const detailMember = staff.find(member => member.id === detailMemberId);
 
   function update(id: string, edit: (member: StaffMember) => StaffMember) {
     onChange(staff.map(member => member.id === id ? edit(member) : member));
@@ -75,18 +77,18 @@ export function PermissionsPage({ staff, events, onChange, onPreview }: {
     setName(''); setEmail(''); setRole('promoter'); setShowNew(false); setError('');
   }
 
-  function toggleEvent(member: StaffMember) {
-    if (!selectedEvent || member.role !== 'promoter') return;
-    update(member.id, row => row.allowedEventIds.includes(selectedEvent.id)
-      ? { ...row, allowedEventIds: row.allowedEventIds.filter(id => id !== selectedEvent.id),
-        invitationEventIds: row.invitationEventIds.filter(id => id !== selectedEvent.id) }
-      : { ...row, allowedEventIds: [...row.allowedEventIds, selectedEvent.id] });
+  function toggleMemberEvent(member: StaffMember, eventId: string) {
+    if (member.role !== 'promoter' || !events.some(event => event.id === eventId)) return;
+    update(member.id, row => row.allowedEventIds.includes(eventId)
+      ? { ...row, allowedEventIds: row.allowedEventIds.filter(id => id !== eventId),
+        invitationEventIds: row.invitationEventIds.filter(id => id !== eventId) }
+      : { ...row, allowedEventIds: [...row.allowedEventIds, eventId] });
   }
 
-  function toggleInvitation(member: StaffMember) {
-    if (!selectedEvent || member.role !== 'promoter' || !member.allowedEventIds.includes(selectedEvent.id)) return;
-    update(member.id, row => ({ ...row, invitationEventIds: row.invitationEventIds.includes(selectedEvent.id)
-      ? row.invitationEventIds.filter(id => id !== selectedEvent.id) : [...row.invitationEventIds, selectedEvent.id] }));
+  function toggleMemberInvitation(member: StaffMember, eventId: string) {
+    if (member.role !== 'promoter' || !member.allowedEventIds.includes(eventId) || !events.some(event => event.id === eventId)) return;
+    update(member.id, row => ({ ...row, invitationEventIds: row.invitationEventIds.includes(eventId)
+      ? row.invitationEventIds.filter(id => id !== eventId) : [...row.invitationEventIds, eventId] }));
   }
 
   function applyBulk() {
@@ -147,28 +149,58 @@ export function PermissionsPage({ staff, events, onChange, onPreview }: {
       <input className="permission-search" aria-label="Buscar persona" placeholder="Buscar persona o correo" value={search} onChange={e => setSearch(e.target.value)}/></div>
       {error && <div className="form-error permission-error"><CircleAlert size={16}/>{error}</div>}
       <div className="permissions-table-scroll"><table className="data-table permissions-table"><thead><tr>
-        <th>PERSONA</th><th>ROL</th><th>VENTA · {selectedEvent?.title ?? 'EVENTO'}</th><th>INVITACIONES</th><th>OTROS EVENTOS</th><th>USUARIO</th><th>VISTA PREVIA</th>
+        <th>PERSONA</th><th>ROL</th><th>VENTA · {selectedEvent?.title ?? 'EVENTO'}</th><th>INVITACIONES</th><th>OTROS EVENTOS</th><th>USUARIO</th><th>GESTIÓN</th><th>VISTA PREVIA</th>
       </tr></thead><tbody>{visible.map(member => <tr key={member.id}>
         <td><strong>{member.name}</strong><small className="table-secondary">{member.email}</small>{member.role === 'admin' && <small className="permission-full-access">Acceso completo</small>}</td>
         <td><select className="permission-role" aria-label={`Rol de ${member.name}`} value={member.role} onChange={e => changeRole(member, e.target.value as StaffRole)}>
           <option value="admin">Administrador</option><option value="promoter">RR. PP.</option></select></td>
         <td><label className="permission-check"><input type="checkbox" aria-label={`Autorizar a ${member.name} a vender en ${selectedEvent?.title ?? 'evento'}`}
           checked={member.role === 'admin' || Boolean(selectedEvent && member.allowedEventIds.includes(selectedEvent.id))}
-          disabled={member.role === 'admin' || !selectedEvent} onChange={() => toggleEvent(member)}/>
+          disabled={member.role === 'admin' || !selectedEvent} onChange={() => selectedEvent && toggleMemberEvent(member, selectedEvent.id)}/>
           <span>{member.role === 'admin' ? 'Siempre' : selectedEvent && member.allowedEventIds.includes(selectedEvent.id) ? 'Habilitado' : 'Sin acceso'}</span></label></td>
         <td><label className="permission-check permission-invite-check"><input type="checkbox" aria-label={`Autorizar a ${member.name} a enviar invitaciones en ${selectedEvent?.title ?? 'evento'}`}
           checked={member.role === 'admin' || Boolean(selectedEvent && member.invitationEventIds.includes(selectedEvent.id) && member.allowedEventIds.includes(selectedEvent.id))}
-          disabled={member.role === 'admin' || !selectedEvent || !member.allowedEventIds.includes(selectedEvent.id)} onChange={() => toggleInvitation(member)}/>
+          disabled={member.role === 'admin' || !selectedEvent || !member.allowedEventIds.includes(selectedEvent.id)} onChange={() => selectedEvent && toggleMemberInvitation(member, selectedEvent.id)}/>
           <span>{member.role === 'admin' ? 'Siempre' : selectedEvent && member.invitationEventIds.includes(selectedEvent.id) && member.allowedEventIds.includes(selectedEvent.id) ? 'Permitido' : 'Solo admin'}</span></label></td>
         <td><span className="permission-event-count">{member.role === 'admin' ? 'Todos' : `${member.allowedEventIds.filter(id => id !== selectedEvent?.id && events.some(event => event.id === id)).length} adicionales`}</span></td>
         <td><button className={`permission-status ${member.active ? 'permission-active' : 'permission-pending'}`} onClick={() => toggleActive(member)}>
           {member.active ? <><Check size={14}/> Activo</> : <><X size={14}/> Pendiente / bloqueado</>}</button></td>
+        <td><button className="adm-open-qr" onClick={() => setDetailMemberId(member.id)} aria-label={`Gestionar eventos de ${member.name}`}><Settings2 size={15}/> Configurar</button></td>
         <td><button className="adm-open-qr" disabled={!member.active} onClick={() => onPreview(member.id)}><Eye size={15}/> Probar acceso</button></td>
       </tr>)}
-      {!visible.length && <tr><td colSpan={7} className="adm-empty">No encontramos personas con esa búsqueda.</td></tr>}
+      {!visible.length && <tr><td colSpan={8} className="adm-empty">No encontramos personas con esa búsqueda.</td></tr>}
       </tbody></table></div>
       <div className="adm-data-note"><LockKeyhole size={16}/><span>Las invitaciones son QR de cortesía sin cobro. Por defecto solo las emite el administrador. Podés autorizar a un RR. PP. para un evento puntual; si le quitás ese evento, pierde también el permiso de invitaciones. El lector QR se configurará más adelante.</span></div>
     </section>
+
+    {detailMember && <div className="modal-layer" onMouseDown={e => { if (e.target === e.currentTarget) setDetailMemberId(null); }}>
+      <div className="modal-card permission-modal permission-detail-modal" role="dialog" aria-modal="true" aria-labelledby="permission-detail-title">
+        <div className="modal-header"><div><h2 id="permission-detail-title">Permisos de {detailMember.name}</h2>
+          <p>{detailMember.email} · {staffRoleLabel(detailMember.role)} · {detailMember.active ? 'Usuario activo' : 'Usuario desactivado'}</p></div>
+          <button className="icon-button" type="button" aria-label="Cerrar" onClick={() => setDetailMemberId(null)}><X size={19}/></button></div>
+        <div className="permission-detail-summary"><span><strong>{detailMember.role === 'admin' ? events.length : detailMember.allowedEventIds.filter(id => events.some(event => event.id === id)).length}</strong> eventos con venta</span>
+          <span><strong>{detailMember.role === 'admin' ? events.length : detailMember.invitationEventIds.filter(id => events.some(event => event.id === id) && detailMember.allowedEventIds.includes(id)).length}</strong> eventos con invitaciones</span></div>
+        <p className="permission-detail-intro">Configurá todos los eventos de esta persona sin cambiar de pantalla. Los cambios se guardan en la demostración automáticamente.</p>
+        <div className="permission-detail-list">
+          {events.map(event => {
+            const canSell = detailMember.role === 'admin' || detailMember.allowedEventIds.includes(event.id);
+            const canInvite = detailMember.role === 'admin' || (canSell && detailMember.invitationEventIds.includes(event.id));
+            return <div className="permission-detail-event" key={event.id}>
+              <div className="permission-detail-event-name"><strong>{event.title}</strong><span>{dateLabel(event.date)}</span></div>
+              <label className="permission-check"><input type="checkbox" aria-label={`Permitir ventas a ${detailMember.name} en ${event.title}`}
+                checked={canSell} disabled={detailMember.role === 'admin'} onChange={() => toggleMemberEvent(detailMember, event.id)}/><span>Vender</span></label>
+              <label className="permission-check"><input type="checkbox" aria-label={`Permitir invitaciones a ${detailMember.name} en ${event.title}`}
+                checked={canInvite} disabled={detailMember.role === 'admin' || !canSell} onChange={() => toggleMemberInvitation(detailMember, event.id)}/><span>Invitar</span></label>
+            </div>;
+          })}
+          {!events.length && <p className="adm-empty">Todavía no hay eventos creados en esta demostración.</p>}
+        </div>
+        <div className="adm-data-note permission-detail-note"><LockKeyhole size={16}/><span>{detailMember.role === 'admin'
+          ? 'El administrador tiene acceso completo a todos los eventos, ventas e invitaciones.'
+          : 'Si deshabilitás la venta de un evento, también se retiran sus invitaciones. Podés preparar permisos aunque el usuario esté desactivado: no podrá entrar hasta que lo actives.'}</span></div>
+        <div className="modal-footer"><button className="btn btn-secondary" type="button" onClick={() => setDetailMemberId(null)}>Listo, cerrar</button></div>
+      </div>
+    </div>}
 
     {showNew && <div className="modal-layer" onMouseDown={e => { if (e.target === e.currentTarget) setShowNew(false); }}><form className="modal-card permission-modal" onSubmit={addMember}>
       <div className="modal-header"><div><h2>Agregar persona</h2><p>Prepará los permisos del nuevo integrante del equipo.</p></div>
